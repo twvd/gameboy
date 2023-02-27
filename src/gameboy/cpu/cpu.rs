@@ -1,4 +1,4 @@
-use super::instructions::Instruction;
+use super::instruction::Instruction;
 
 pub struct CPU {}
 

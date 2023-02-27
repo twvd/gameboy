@@ -1,28 +1,6 @@
 use super::cpu::CPU;
+use super::instruction::{Instruction, Operand};
 use super::regs::Register;
-
-enum Operand {
-    None,
-    Constant(u8),
-    Register(Register),
-    RegisterPtr(Register),
-    RegisterPtrInc(Register),
-    RegisterPtrDec(Register),
-    Immediate8,
-    Immediate16,
-    ImmediatePtr8,
-    ImmediatePtr16,
-    Relative8,
-    SPRelative8,
-}
-
-pub struct Instruction {
-    mnemonic: &'static str,
-    operands: [Operand; 2],
-    len: u8,
-    cycles: [u8; 2],
-    func: fn(&mut CPU, &Instruction),
-}
 
 /// Base instruction table, parsed from https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 pub const INSTRUCTIONS: [Instruction; 256] = [
