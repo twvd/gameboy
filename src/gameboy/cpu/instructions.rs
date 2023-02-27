@@ -21,7 +21,7 @@ pub struct Instruction {
     operands: [Operand; 2],
     len: u8,
     cycles: [u8; 2],
-    func: fn(&mut CPU),
+    func: fn(&mut CPU, &Instruction),
 }
 
 /// Base instruction table, parsed from https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
