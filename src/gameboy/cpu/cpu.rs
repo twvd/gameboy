@@ -15,6 +15,10 @@ impl CPU {
         }
     }
 
+    pub fn step(&mut self) {
+        todo!();
+    }
+
     pub fn op_set(&mut self, _instr: &Instruction) {
         todo!();
     }
