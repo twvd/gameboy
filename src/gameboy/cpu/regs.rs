@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// Datatype of a single CPU register.
 type Reg = u8;
 
@@ -80,6 +82,12 @@ impl RegisterFile {
     pub fn set_hl(&mut self, hl: u16) {
         self.l = (hl & 0xFF) as u8;
         self.h = ((hl >> 8) & 0xFF) as u8;
+    }
+}
+
+impl fmt::Display for RegisterFile {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SP: {:04X}  PC: {:04X}", self.sp, self.pc)
     }
 }
 
