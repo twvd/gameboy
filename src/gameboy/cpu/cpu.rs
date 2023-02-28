@@ -1,8 +1,20 @@
+use super::super::bus::bus::Bus;
 use super::instruction::Instruction;
+use super::regs::RegisterFile;
 
-pub struct CPU {}
+pub struct CPU {
+    pub bus: Box<dyn Bus>,
+    pub regs: RegisterFile,
+}
 
 impl CPU {
+    pub fn new(bus: Box<dyn Bus>) -> Self {
+        Self {
+            bus,
+            regs: RegisterFile::new(),
+        }
+    }
+
     pub fn op_set(&mut self, _instr: &Instruction) {
         todo!();
     }

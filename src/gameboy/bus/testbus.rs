@@ -5,7 +5,7 @@ pub struct Testbus {
 }
 
 impl Testbus {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Testbus {
             mem: [0; u16::MAX as usize],
         }
