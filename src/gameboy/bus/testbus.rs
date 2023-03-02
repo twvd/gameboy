@@ -1,13 +1,13 @@
 use super::bus::Bus;
 
 pub struct Testbus {
-    mem: [u8; u16::MAX as usize],
+    mem: [u8; u16::MAX as usize + 1],
 }
 
 impl Testbus {
     pub fn new() -> Self {
         Testbus {
-            mem: [0; u16::MAX as usize],
+            mem: [0; u16::MAX as usize + 1],
         }
     }
 }
@@ -30,13 +30,13 @@ mod tests {
     fn testbus() {
         let mut b = Testbus::new();
 
-        for a in 0..u16::MAX {
+        for a in 0..=u16::MAX {
             assert_eq!(b.read(a), 0);
         }
-        for a in 0..u16::MAX {
+        for a in 0..=u16::MAX {
             b.write(a, a as u8);
         }
-        for a in 0..u16::MAX {
+        for a in 0..=u16::MAX {
             assert_eq!(b.read(a), a as u8);
         }
     }

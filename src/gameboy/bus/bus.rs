@@ -47,3 +47,39 @@ impl<'a> Iterator for BusIterator<'a> {
         Some(self.bus.read(curr))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::testbus::Testbus;
+    use super::*;
+
+    fn testbus() -> Testbus {
+        let mut b = Testbus::new();
+        for a in 0..=u16::MAX {
+            b.write(a, a as u8);
+        }
+        b
+    }
+
+    #[test]
+    fn busiterator_new() {
+        let b: Box<dyn Bus> = Box::new(testbus());
+        let mut i = BusIterator::new(&b);
+
+        for a in 0..=u16::MAX {
+            assert_eq!(i.next(), Some(a as u8));
+        }
+        assert_eq!(i.next(), None);
+    }
+
+    #[test]
+    fn busiterator_new_from() {
+        let b: Box<dyn Bus> = Box::new(testbus());
+        let mut i = BusIterator::new_from(&b, 5);
+
+        for a in 5..=u16::MAX {
+            assert_eq!(i.next(), Some(a as u8));
+        }
+        assert_eq!(i.next(), None);
+    }
+}
