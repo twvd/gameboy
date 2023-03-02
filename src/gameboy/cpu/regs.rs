@@ -1,5 +1,7 @@
 use std::fmt;
 
+use anyhow::{bail, Result};
+
 /// Datatype of a single CPU register.
 type Reg = u8;
 
@@ -16,6 +18,7 @@ pub enum Flags {
 }
 
 /// Enumeration of registers
+#[derive(Debug)]
 pub enum Register {
     A,
     F,
@@ -42,6 +45,7 @@ pub struct RegisterFile {
 
     /// F (flags) register.
     pub f: Reg,
+
     pub b: Reg,
     pub c: Reg,
     pub d: Reg,
@@ -75,13 +79,45 @@ impl RegisterFile {
         }
     }
 
-    pub fn hl(&self) -> u16 {
-        self.l as u16 | (self.h as u16) << 8
-    }
+    /// Write a value to a register.
+    /// Returns an error when attempting to write
+    /// a 16-bit value to an 8-bit register.
+    pub fn write(&mut self, reg: Register, val: u16) -> Result<()> {
+        let reg8 = || {
+            if val > u8::MAX.into() {
+                bail!("Cannot write {} to 8-bit register {:?}", val, reg)
+            } else {
+                Ok(val as u8)
+            }
+        };
+        let reg16 = || -> Result<(u8, u8)> {
+            // MSB, LSB
+            Ok(((val >> 8) as u8, (val & 0xFF) as u8))
+        };
 
-    pub fn set_hl(&mut self, hl: u16) {
-        self.l = (hl & 0xFF) as u8;
-        self.h = ((hl >> 8) & 0xFF) as u8;
+        match reg {
+            // 8-bit single registers
+            Register::A => self.a = reg8()?,
+            Register::B => self.b = reg8()?,
+            Register::C => self.c = reg8()?,
+            Register::D => self.d = reg8()?,
+            Register::E => self.e = reg8()?,
+            Register::F => self.f = reg8()?,
+            Register::H => self.h = reg8()?,
+            Register::L => self.l = reg8()?,
+
+            // 16-bit combination registers
+            Register::AF => (self.a, self.f) = reg16()?,
+            Register::BC => (self.b, self.c) = reg16()?,
+            Register::DE => (self.d, self.e) = reg16()?,
+            Register::HL => (self.h, self.l) = reg16()?,
+
+            // 16-bit-only registers
+            Register::SP => self.sp = val,
+            Register::PC => self.pc = val,
+        }
+
+        Ok(())
     }
 }
 
@@ -96,31 +132,78 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hl() {
+    fn write_8bit() {
         let mut r = RegisterFile::new();
+        r.write(Register::A, 0x12).unwrap();
+        assert_eq!(r.a, 0x12);
 
-        assert_eq!(r.h, 0);
-        assert_eq!(r.l, 0);
-        assert_eq!(r.hl(), 0);
+        let mut r = RegisterFile::new();
+        r.write(Register::B, 0x12).unwrap();
+        assert_eq!(r.b, 0x12);
 
-        r.l = 0x34;
-        assert_eq!(r.hl(), 0x34);
+        let mut r = RegisterFile::new();
+        r.write(Register::C, 0x12).unwrap();
+        assert_eq!(r.c, 0x12);
 
-        r.h = 0x12;
-        assert_eq!(r.hl(), 0x1234);
+        let mut r = RegisterFile::new();
+        r.write(Register::D, 0x12).unwrap();
+        assert_eq!(r.d, 0x12);
+
+        let mut r = RegisterFile::new();
+        r.write(Register::E, 0x12).unwrap();
+        assert_eq!(r.e, 0x12);
+
+        let mut r = RegisterFile::new();
+        r.write(Register::F, 0x12).unwrap();
+        assert_eq!(r.f, 0x12);
+
+        let mut r = RegisterFile::new();
+        r.write(Register::H, 0x12).unwrap();
+        assert_eq!(r.h, 0x12);
+
+        let mut r = RegisterFile::new();
+        r.write(Register::L, 0x12).unwrap();
+        assert_eq!(r.l, 0x12);
     }
 
     #[test]
-    fn set_hl() {
+    fn write_8bit_error() {
         let mut r = RegisterFile::new();
+        assert!(matches!(r.write(Register::A, 0xFF), Ok(_)));
+        assert_eq!(r.a, 0xFF);
 
-        assert_eq!(r.h, 0);
-        assert_eq!(r.l, 0);
-        assert_eq!(r.hl(), 0);
+        let mut r = RegisterFile::new();
+        assert!(matches!(r.write(Register::A, 0x1FF), Err(_)));
+        assert_eq!(r.a, 0);
+    }
 
-        r.set_hl(0x1234);
-        assert_eq!(r.h, 0x12);
-        assert_eq!(r.l, 0x34);
-        assert_eq!(r.hl(), 0x1234);
+    #[test]
+    fn write_comb16bit() {
+        let mut r = RegisterFile::new();
+        r.write(Register::AF, 0x1234).unwrap();
+        assert_eq!((r.a, r.f), (0x12, 0x34));
+
+        let mut r = RegisterFile::new();
+        r.write(Register::BC, 0x1234).unwrap();
+        assert_eq!((r.b, r.c), (0x12, 0x34));
+
+        let mut r = RegisterFile::new();
+        r.write(Register::DE, 0x1234).unwrap();
+        assert_eq!((r.d, r.e), (0x12, 0x34));
+
+        let mut r = RegisterFile::new();
+        r.write(Register::HL, 0x1234).unwrap();
+        assert_eq!((r.h, r.l), (0x12, 0x34));
+    }
+
+    #[test]
+    fn write_16bit() {
+        let mut r = RegisterFile::new();
+        r.write(Register::SP, 0x1234).unwrap();
+        assert_eq!(r.sp, 0x1234);
+
+        let mut r = RegisterFile::new();
+        r.write(Register::PC, 0x1234).unwrap();
+        assert_eq!(r.pc, 0x1234);
     }
 }
