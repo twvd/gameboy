@@ -13,9 +13,9 @@ fn main() -> Result<()> {
     }
 
     let f = fs::read(&args[1])?;
+    let mut fiter = f.into_iter();
     let mut pos = 0;
-    while pos < f.len() {
-        let ins = Instruction::decode(&f[pos..])?;
+    while let Ok(ins) = Instruction::decode(&mut fiter) {
         println!("{:04X} {}", pos, ins);
         pos += ins.len;
     }

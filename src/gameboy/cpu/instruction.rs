@@ -1,6 +1,7 @@
 use std::fmt;
 
 use anyhow::Result;
+use thiserror::Error;
 
 use super::cpu::CPU;
 use super::instructions::{INSTRUCTIONS, INSTRUCTIONS_CB};
@@ -61,8 +62,14 @@ pub struct InstructionDef {
     pub func: fn(&mut CPU, &Instruction),
 }
 
+#[derive(Debug, Error)]
+enum DecodeErr {
+    #[error("End of instruction stream")]
+    EndOfStream,
+}
+
 /// A decoded instruction.
-pub struct Instruction<'a> {
+pub struct Instruction {
     /// Reference to the definition.
     pub def: &'static InstructionDef,
 
@@ -73,20 +80,26 @@ pub struct Instruction<'a> {
     pub len: usize,
 
     /// Raw instruction bytes.
-    pub raw: &'a [u8],
+    pub raw: Vec<u8>,
 }
 
-impl<'a> Instruction<'a> {
-    /// Try to decode a single instruction from a u8 slice,
-    /// starting from index 0.
-    pub fn decode(stream: &'a [u8]) -> Result<Instruction> {
-        let cb = stream[0] == 0xCB;
-        let def: &InstructionDef = if cb {
-            &INSTRUCTIONS_CB[stream[1] as usize]
-        } else {
-            &INSTRUCTIONS[stream[0] as usize]
+impl Instruction {
+    /// Try to decode a single instruction from an
+    /// iterator.
+    pub fn decode(stream: &mut impl Iterator<Item = u8>) -> Result<Instruction> {
+        let mut raw: Vec<u8> = vec![];
+        let mut rd = || -> Result<u8> {
+            let b = stream.next().ok_or(DecodeErr::EndOfStream)?;
+            raw.push(b);
+            Ok(b)
         };
-        let mut streampos = if cb { 2 } else { 1 };
+        let b = rd()?;
+        let cb = b == 0xCB;
+        let def: &InstructionDef = if cb {
+            &INSTRUCTIONS_CB[b as usize]
+        } else {
+            &INSTRUCTIONS[b as usize]
+        };
 
         // Decode immediate values.
         let mut immediate: Vec<ImmediateVal> = vec![];
@@ -96,32 +109,27 @@ impl<'a> Instruction<'a> {
                 | Operand::ImmediatePtr8
                 | Operand::Relative8
                 | Operand::SPRelative8 => {
-                    immediate.push(ImmediateVal::Immediate8(stream[streampos]));
-                    streampos += 1;
+                    immediate.push(ImmediateVal::Immediate8(rd()?));
                 }
                 Operand::Immediate16 | Operand::ImmediatePtr16 => {
-                    immediate.push(ImmediateVal::Immediate16(
-                        stream[streampos] as u16 | ((stream[streampos + 1] as u16) << 8),
-                    ));
-                    streampos += 2;
+                    let mut val: u16 = rd()? as u16;
+                    val |= (rd()? as u16) << 8;
+                    immediate.push(ImmediateVal::Immediate16(val));
                 }
                 _ => {}
             }
         }
 
-        // FIXME
-        //assert_eq!(streampos, def.len);
-
         Ok(Instruction {
             def,
             immediate,
-            len: def.len,
-            raw: &stream[..def.len],
+            len: raw.len(),
+            raw,
         })
     }
 }
 
-impl<'a> fmt::Display for Instruction<'a> {
+impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = self.def.mnemonic.to_string();
         let mut i = self.immediate.iter();

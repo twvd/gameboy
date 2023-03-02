@@ -1,4 +1,6 @@
-use super::super::bus::bus::Bus;
+use anyhow::Result;
+
+use super::super::bus::bus::{Bus, BusIterator};
 use super::instruction::Instruction;
 use super::regs::RegisterFile;
 
@@ -15,8 +17,16 @@ impl CPU {
         }
     }
 
-    pub fn step(&mut self) {
-        todo!();
+    pub fn peek_next_instr(&self) -> Result<Instruction> {
+        let mut busiter = BusIterator::new_from(&self.bus, self.regs.pc);
+        Instruction::decode(&mut busiter)
+    }
+
+    pub fn step(&mut self) -> Result<()> {
+        let instr = self.peek_next_instr()?;
+
+        (instr.def.func)(self, &instr);
+        Ok(())
     }
 
     pub fn op_set(&mut self, _instr: &Instruction) {
