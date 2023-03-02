@@ -119,6 +119,58 @@ impl RegisterFile {
 
         Ok(())
     }
+
+    fn read(&self, reg: Register) -> u16 {
+        let reg16 = |msb: u8, lsb: u8| (msb as u16) << 8 | lsb as u16;
+
+        match reg {
+            // 8-bit single registers
+            Register::A => self.a as u16,
+            Register::B => self.b as u16,
+            Register::C => self.c as u16,
+            Register::D => self.d as u16,
+            Register::E => self.e as u16,
+            Register::F => self.f as u16,
+            Register::H => self.h as u16,
+            Register::L => self.l as u16,
+
+            // 16-bit combination registers
+            Register::AF => reg16(self.a, self.f),
+            Register::BC => reg16(self.b, self.c),
+            Register::DE => reg16(self.d, self.e),
+            Register::HL => reg16(self.h, self.l),
+
+            // 16-bit-only registers
+            Register::SP => self.sp,
+            Register::PC => self.pc,
+        }
+    }
+
+    pub fn read8(&self, reg: Register) -> Result<u8> {
+        match reg {
+            Register::A
+            | Register::B
+            | Register::C
+            | Register::D
+            | Register::E
+            | Register::F
+            | Register::H
+            | Register::L => Ok(self.read(reg) as u8),
+            _ => bail!("Attempting 8-bit read on 16-bit register {:?}", reg),
+        }
+    }
+
+    pub fn read16(&self, reg: Register) -> Result<u16> {
+        match reg {
+            Register::AF
+            | Register::BC
+            | Register::DE
+            | Register::HL
+            | Register::PC
+            | Register::SP => Ok(self.read(reg)),
+            _ => bail!("Attempting 16-bit read on 8-bit register {:?}", reg),
+        }
+    }
 }
 
 impl fmt::Display for RegisterFile {
@@ -205,5 +257,71 @@ mod tests {
         let mut r = RegisterFile::new();
         r.write(Register::PC, 0x1234).unwrap();
         assert_eq!(r.pc, 0x1234);
+    }
+
+    #[test]
+    fn read8() {
+        let mut r = RegisterFile::new();
+        r.a = 0x12;
+        assert!(matches!(r.read8(Register::A), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.b = 0x12;
+        assert!(matches!(r.read8(Register::B), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.c = 0x12;
+        assert!(matches!(r.read8(Register::C), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.d = 0x12;
+        assert!(matches!(r.read8(Register::D), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.e = 0x12;
+        assert!(matches!(r.read8(Register::E), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.f = 0x12;
+        assert!(matches!(r.read8(Register::F), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.h = 0x12;
+        assert!(matches!(r.read8(Register::H), Ok(0x12)));
+
+        let mut r = RegisterFile::new();
+        r.l = 0x12;
+        assert!(matches!(r.read8(Register::L), Ok(0x12)));
+    }
+
+    #[test]
+    fn read8_error() {
+        let r = RegisterFile::new();
+        assert!(matches!(r.read8(Register::AF), Err(_)));
+    }
+
+    #[test]
+    fn read16() {
+        let mut r = RegisterFile::new();
+        (r.a, r.f) = (0x12, 0x34);
+        assert!(matches!(r.read16(Register::AF), Ok(0x1234)));
+
+        let mut r = RegisterFile::new();
+        (r.b, r.c) = (0x12, 0x34);
+        assert!(matches!(r.read16(Register::BC), Ok(0x1234)));
+
+        let mut r = RegisterFile::new();
+        (r.d, r.e) = (0x12, 0x34);
+        assert!(matches!(r.read16(Register::DE), Ok(0x1234)));
+
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x12, 0x34);
+        assert!(matches!(r.read16(Register::HL), Ok(0x1234)));
+    }
+
+    #[test]
+    fn read16_error() {
+        let r = RegisterFile::new();
+        assert!(matches!(r.read16(Register::A), Err(_)));
     }
 }
