@@ -191,6 +191,11 @@ impl RegisterFile {
         }
         self.f = f;
     }
+
+    /// Test a flag.
+    pub fn test_flag(&self, f: Flag) -> bool {
+        self.f & (1u8 << f.to_u8().unwrap()) != 0
+    }
 }
 
 impl fmt::Display for RegisterFile {

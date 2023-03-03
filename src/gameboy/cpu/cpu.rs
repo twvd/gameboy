@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 use super::super::bus::bus::{Bus, BusIterator};
 use super::instruction::{Instruction, Operand};
-use super::regs::RegisterFile;
+use super::regs::{Flag, Register, RegisterFile};
 
 /// Return type of CPU::op_* functions
 type CPUOpResult = Result<OpOk>;
@@ -190,8 +190,19 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_xor(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// XOR - Bitwise XOR
+    pub fn op_xor(&mut self, instr: &Instruction) -> CPUOpResult {
+        let a = self.regs.read8(Register::A)?;
+        let val = match instr.def.operands[0] {
+            // XOR reg
+            Operand::Register(r) => self.regs.read8(r)?,
+            _ => todo!(),
+        };
+        let result = a ^ val;
+        self.regs.write(Register::A, result.into())?;
+        self.regs.write_flags(&[(Flag::Z, result == 0)]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_and(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -335,5 +346,22 @@ mod tests {
     fn op_ld_reg_imm16() {
         let cpu = run(&[0x31, 0x34, 0x12]);
         assert_eq!(cpu.regs.sp, 0x1234);
+    }
+
+    #[test]
+    fn op_xor_reg() {
+        let mut c = cpu(&[0xA8]);
+        c.regs.a = 0x55;
+        c.regs.b = 0xAA;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0xFF);
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let mut c = cpu(&[0xA8]);
+        c.regs.a = 0xAA;
+        c.regs.b = 0xAA;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
     }
 }
