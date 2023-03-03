@@ -1,12 +1,15 @@
 use std::fmt;
 
 use anyhow::{bail, Result};
+use num_derive::ToPrimitive;
+use num_traits::ToPrimitive;
 
 /// Datatype of a single CPU register.
 type Reg = u8;
 
 /// Bit positions of the flags in the F register.
-pub enum Flags {
+#[derive(ToPrimitive, Debug, Copy, Clone)]
+pub enum Flag {
     /// Zero
     Z = 7,
     /// Subtract
@@ -16,6 +19,8 @@ pub enum Flags {
     /// Carry
     C = 4,
 }
+
+const FLAG_MASK: u8 = 0xF0;
 
 /// Enumeration of registers
 #[derive(Debug, Copy, Clone)]
@@ -146,6 +151,8 @@ impl RegisterFile {
         }
     }
 
+    /// Reads an 8-bit register
+    /// Returns an error if requested register is not 8-bit.
     pub fn read8(&self, reg: Register) -> Result<u8> {
         match reg {
             Register::A
@@ -160,6 +167,8 @@ impl RegisterFile {
         }
     }
 
+    /// Reads an 16-bit register
+    /// Returns an error if requested register is not 16-bit.
     pub fn read16(&self, reg: Register) -> Result<u16> {
         match reg {
             Register::AF
@@ -170,6 +179,17 @@ impl RegisterFile {
             | Register::SP => Ok(self.read(reg)),
             _ => bail!("Attempting 16-bit read on 8-bit register {:?}", reg),
         }
+    }
+
+    /// Clear and write the flags in F.
+    pub fn write_flags(&mut self, flag_val: &[(Flag, bool)]) {
+        let mut f: u8 = self.f & !FLAG_MASK;
+        for &(b, _) in flag_val.iter().filter(|&&(_, on)| on) {
+            // Just unwrap here, it will succeed anyway
+            // because we know the enum values fit in u8.
+            f |= 1u8 << b.to_u8().unwrap();
+        }
+        self.f = f;
     }
 }
 
@@ -335,5 +355,60 @@ mod tests {
     fn read16_error() {
         let r = RegisterFile::new();
         assert!(matches!(r.read16(Register::A), Err(_)));
+    }
+
+    #[test]
+    fn write_flags_low_nibble_untouched() {
+        let mut r = RegisterFile::new();
+        r.f = 0xFF;
+        r.write_flags(&[]);
+        assert_eq!(r.f, 0x0F);
+    }
+
+    #[test]
+    fn write_flags_none() {
+        let mut r = RegisterFile::new();
+        r.f = FLAG_MASK;
+        r.write_flags(&[]);
+        assert_eq!(r.f, 0x00);
+    }
+
+    #[test]
+    fn write_flags_one_true() {
+        let mut r = RegisterFile::new();
+        r.write_flags(&[(Flag::Z, true)]);
+        assert_eq!(r.f, 1u8 << Flag::Z.to_u8().unwrap());
+    }
+
+    #[test]
+    fn write_flags_one_false() {
+        let mut r = RegisterFile::new();
+        r.write_flags(&[(Flag::Z, false)]);
+        assert_eq!(r.f, 0);
+    }
+
+    #[test]
+    fn write_flags_multiple_true() {
+        let mut r = RegisterFile::new();
+        r.write_flags(&[(Flag::Z, true), (Flag::C, true)]);
+        assert_eq!(
+            r.f,
+            1u8 << Flag::Z.to_u8().unwrap() | 1u8 << Flag::C.to_u8().unwrap()
+        );
+    }
+
+    #[test]
+    fn write_flags_multiple_mixed() {
+        let mut r = RegisterFile::new();
+        r.write_flags(&[
+            (Flag::Z, false),
+            (Flag::C, false),
+            (Flag::H, true),
+            (Flag::N, true),
+        ]);
+        assert_eq!(
+            r.f,
+            1u8 << Flag::H.to_u8().unwrap() | 1u8 << Flag::N.to_u8().unwrap()
+        );
     }
 }
