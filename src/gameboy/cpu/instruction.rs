@@ -1,6 +1,6 @@
 use std::fmt;
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use thiserror::Error;
 
 use super::cpu::CPU;
@@ -8,6 +8,7 @@ use super::instructions::{INSTRUCTIONS, INSTRUCTIONS_CB};
 use super::regs::Register;
 
 /// A single operand to an instruction
+#[derive(Debug)]
 pub enum Operand {
     None,
     Constant(u8),
@@ -59,7 +60,8 @@ pub struct InstructionDef {
     pub cycles: [u8; 2],
 
     /// CPU function that executes the instruction.
-    pub func: fn(&mut CPU, &Instruction),
+    /// Return how much to advance PC by.
+    pub func: fn(&mut CPU, &Instruction) -> Result<u16>,
 }
 
 #[derive(Debug, Error)]
@@ -126,6 +128,32 @@ impl Instruction {
             len: raw.len(),
             raw,
         })
+    }
+
+    /// Read 8-bit immediate value.
+    ///
+    /// Returns an error if index is out of bounds or
+    /// the requested value is not 8-bit.
+    pub fn imm8(&self, idx: usize) -> Result<u8> {
+        let immval = self.immediate.get(idx).context("Index out of bounds")?;
+        if let ImmediateVal::Immediate8(val) = immval {
+            Ok(*val)
+        } else {
+            bail!("Value not 8-bit")
+        }
+    }
+
+    /// Read 16-bit immediate value.
+    ///
+    /// Returns an error if index is out of bounds or
+    /// the requested value is not 16-bit.
+    pub fn imm16(&self, idx: usize) -> Result<u16> {
+        let immval = self.immediate.get(idx).context("Index out of bounds")?;
+        if let ImmediateVal::Immediate16(val) = immval {
+            Ok(*val)
+        } else {
+            bail!("Value not 16-bit")
+        }
     }
 }
 

@@ -10,6 +10,12 @@ impl Testbus {
             mem: [0; u16::MAX as usize + 1],
         }
     }
+
+    pub fn from(data: &[u8]) -> Self {
+        let mut ret = Testbus::new();
+        ret.write_slice(data, 0);
+        ret
+    }
 }
 
 impl Bus for Testbus {

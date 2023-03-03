@@ -18,7 +18,7 @@ pub enum Flags {
 }
 
 /// Enumeration of registers
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Register {
     A,
     F,
