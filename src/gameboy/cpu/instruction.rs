@@ -3,7 +3,7 @@ use std::fmt;
 use anyhow::{bail, Context, Result};
 use thiserror::Error;
 
-use super::cpu::CPU;
+use super::cpu::CPUOpFn;
 use super::instructions::{INSTRUCTIONS, INSTRUCTIONS_CB};
 use super::regs::Register;
 
@@ -60,8 +60,7 @@ pub struct InstructionDef {
     pub cycles: [u8; 2],
 
     /// CPU function that executes the instruction.
-    /// Return how much to advance PC by.
-    pub func: fn(&mut CPU, &Instruction) -> Result<u16>,
+    pub func: CPUOpFn,
 }
 
 #[derive(Debug, Error)]

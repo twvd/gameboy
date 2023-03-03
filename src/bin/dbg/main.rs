@@ -21,8 +21,8 @@ fn main() -> Result<()> {
     let mut cpu = CPU::new(Box::from(bus));
 
     loop {
+        println!("Cycle: {}", cpu.get_cycles());
         println!("{}", cpu.regs);
-
         println!(" --> {}", cpu.peek_next_instr()?);
 
         let _ = stdin().read(&mut [0u8]).unwrap();
