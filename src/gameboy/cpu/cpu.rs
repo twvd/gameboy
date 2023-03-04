@@ -66,9 +66,9 @@ impl CPU {
         self.cycles
     }
 
-    /// SET b,n - Set bit 'b' in 'n'
-    pub fn op_set(&mut self, instr: &Instruction) -> CPUOpResult {
-        // SET const, _
+    /// SET/RES generic implementation
+    fn op_set_res(&mut self, instr: &Instruction, set: bool) -> CPUOpResult {
+        // SET/RES const, _
         let Operand::Constant(bit) = instr.def.operands[0]
             else { bail!("Unknown first operand {:?}", instr.def.operands[0]) };
 
@@ -76,15 +76,19 @@ impl CPU {
         assert!((0..8).contains(&bit));
 
         let val = match instr.def.operands[1] {
-            // SET _, reg
+            // SET/RES _, reg
             Operand::Register(reg) => self.regs.read8(reg)?,
             _ => todo!(),
         };
 
-        let val = val | (1 << bit);
+        let val = if set {
+            val | (1 << bit)
+        } else {
+            val & !(1 << bit)
+        };
 
         match instr.def.operands[1] {
-            // SET _, reg
+            // SET/RES _, reg
             Operand::Register(reg) => self.regs.write8(reg, val)?,
             _ => todo!(),
         }
@@ -92,8 +96,14 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_res(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SET b,n - Set bit 'b' in 'n'
+    pub fn op_set(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_set_res(instr, true)
+    }
+
+    /// RES b,n - Clear bit 'b' in 'n'
+    pub fn op_res(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_set_res(instr, false)
     }
 
     pub fn op_srl(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -426,5 +436,16 @@ mod tests {
         c.regs.d = 0x0F;
         cpu_run(&mut c);
         assert_eq!(c.regs.d, 0x1F);
+    }
+
+    #[test]
+    fn op_res_reg() {
+        let mut c = cpu(&[0xCB, 0x80]); // RES 0,B
+        c.regs.b = 0xFF;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.b, 0xFE);
+
+        let c = run(&[0xCB, 0x81]); // RES 0,C
+        assert_eq!(c.regs.c, 0x00);
     }
 }
