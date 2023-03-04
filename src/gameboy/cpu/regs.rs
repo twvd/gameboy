@@ -43,6 +43,29 @@ pub enum Register {
     PC,
 }
 
+impl Register {
+    /// Width of the register, in bytes.
+    pub const fn width(&self) -> usize {
+        match self {
+            Register::A
+            | Register::F
+            | Register::B
+            | Register::C
+            | Register::D
+            | Register::E
+            | Register::L
+            | Register::H => 1,
+
+            Register::AF
+            | Register::BC
+            | Register::DE
+            | Register::HL
+            | Register::SP
+            | Register::PC => 2,
+        }
+    }
+}
+
 /// Complete CPU register file
 pub struct RegisterFile {
     /// A (accumulator) register.
@@ -179,6 +202,34 @@ impl RegisterFile {
             | Register::SP => Ok(self.read(reg)),
             _ => bail!("Attempting 16-bit read on 8-bit register {:?}", reg),
         }
+    }
+
+    /// Read 8-bit register and increment.
+    pub fn read8_inc(&mut self, reg: Register) -> Result<u8> {
+        let val = self.read8(reg)?;
+        self.write(reg, val.wrapping_add(1).try_into()?)?;
+        Ok(val.try_into()?)
+    }
+
+    /// Read 16-bit register and increment.
+    pub fn read16_inc(&mut self, reg: Register) -> Result<u16> {
+        let val = self.read16(reg)?;
+        self.write(reg, val.wrapping_add(1))?;
+        Ok(val)
+    }
+
+    /// Read 8-bit register and decrement.
+    pub fn read8_dec(&mut self, reg: Register) -> Result<u8> {
+        let val = self.read8(reg)?;
+        self.write(reg, val.wrapping_sub(1).try_into()?)?;
+        Ok(val.try_into()?)
+    }
+
+    /// Read 16-bit register and decrement.
+    pub fn read16_dec(&mut self, reg: Register) -> Result<u16> {
+        let val = self.read16(reg)?;
+        self.write(reg, val.wrapping_sub(1))?;
+        Ok(val)
     }
 
     /// Clear and write the flags in F.
@@ -415,5 +466,87 @@ mod tests {
             r.f,
             1u8 << Flag::H.to_u8().unwrap() | 1u8 << Flag::N.to_u8().unwrap()
         );
+    }
+
+    #[test]
+    fn read8_inc() {
+        let mut r = RegisterFile::new();
+        r.a = 12;
+        assert_eq!(r.read8_inc(Register::A).unwrap(), 12);
+        assert_eq!(r.a, 13);
+    }
+
+    #[test]
+    fn read8_inc_overflow() {
+        let mut r = RegisterFile::new();
+        r.a = 0xFF;
+        assert_eq!(r.read8_inc(Register::A).unwrap(), 0xFF);
+        assert_eq!(r.a, 0);
+    }
+
+    #[test]
+    fn read8_dec() {
+        let mut r = RegisterFile::new();
+        r.a = 12;
+        assert_eq!(r.read8_dec(Register::A).unwrap(), 12);
+        assert_eq!(r.a, 11);
+    }
+
+    #[test]
+    fn read8_dec_overflow() {
+        let mut r = RegisterFile::new();
+        r.a = 0;
+        assert_eq!(r.read8_dec(Register::A).unwrap(), 0);
+        assert_eq!(r.a, 0xFF);
+    }
+
+    #[test]
+    fn read16_inc() {
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x12, 0x34);
+        assert_eq!(r.read16_inc(Register::HL).unwrap(), 0x1234);
+        assert_eq!((r.h, r.l), (0x12, 0x35));
+    }
+
+    #[test]
+    fn read16_inc_boundary() {
+        // Check crossing 8-bit boundary
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x00, 0xFF);
+        assert_eq!(r.read16_inc(Register::HL).unwrap(), 0x00FF);
+        assert_eq!((r.h, r.l), (0x01, 0x00));
+    }
+
+    #[test]
+    fn read16_inc_overflow() {
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0xFF, 0xFF);
+        assert_eq!(r.read16_inc(Register::HL).unwrap(), 0xFFFF);
+        assert_eq!((r.h, r.l), (0, 0));
+    }
+
+    #[test]
+    fn read16_dec() {
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x12, 0x34);
+        assert_eq!(r.read16_dec(Register::HL).unwrap(), 0x1234);
+        assert_eq!((r.h, r.l), (0x12, 0x33));
+    }
+
+    #[test]
+    fn read16_dec_boundary() {
+        // Check crossing 8-bit boundary
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x01, 0x00);
+        assert_eq!(r.read16_dec(Register::HL).unwrap(), 0x0100);
+        assert_eq!((r.h, r.l), (0x00, 0xFF));
+    }
+
+    #[test]
+    fn read16_dec_overflow() {
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0, 0);
+        assert_eq!(r.read16_dec(Register::HL).unwrap(), 0);
+        assert_eq!((r.h, r.l), (0xFF, 0xFF));
     }
 }
