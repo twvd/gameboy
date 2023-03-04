@@ -154,6 +154,12 @@ impl RegisterFile {
         Ok(())
     }
 
+    /// Write an 8-bit value to an 8-bit register.
+    #[inline(always)]
+    pub fn write8(&mut self, reg: Register, val: u8) -> Result<()> {
+        self.write(reg, val.try_into()?)
+    }
+
     /// Read an 8-bit or 16-bit register.
     pub fn read(&self, reg: Register) -> u16 {
         let reg16 = |msb: u8, lsb: u8| (msb as u16) << 8 | lsb as u16;

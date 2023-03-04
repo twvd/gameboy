@@ -66,8 +66,30 @@ impl CPU {
         self.cycles
     }
 
-    pub fn op_set(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SET b,n - Set bit 'b' in 'n'
+    pub fn op_set(&mut self, instr: &Instruction) -> CPUOpResult {
+        // SET const, _
+        let Operand::Constant(bit) = instr.def.operands[0]
+            else { bail!("Unknown first operand {:?}", instr.def.operands[0]) };
+
+        // This is always an 8-bit operation.
+        assert!((0..8).contains(&bit));
+
+        let val = match instr.def.operands[1] {
+            // SET _, reg
+            Operand::Register(reg) => self.regs.read8(reg)?,
+            _ => todo!(),
+        };
+
+        let val = val | (1 << bit);
+
+        match instr.def.operands[1] {
+            // SET _, reg
+            Operand::Register(reg) => self.regs.write8(reg, val)?,
+            _ => todo!(),
+        }
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_res(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -390,5 +412,19 @@ mod tests {
         c.regs.b = 0x55;
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x55);
+    }
+
+    #[test]
+    fn op_set_reg() {
+        let c = run(&[0xCB, 0xC7]); // SET 0,A
+        assert_eq!(c.regs.a, 0x01);
+
+        let c = run(&[0xCB, 0xFB]); // SET 7,E
+        assert_eq!(c.regs.e, 0x80);
+
+        let mut c = cpu(&[0xCB, 0xE2]); // SET 4,D
+        c.regs.d = 0x0F;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.d, 0x1F);
     }
 }
