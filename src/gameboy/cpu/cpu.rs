@@ -152,15 +152,24 @@ impl CPU {
 
     /// LD - Load Register
     pub fn op_ld(&mut self, instr: &Instruction) -> CPUOpResult {
-        let Operand::Register(dest) = instr.def.operands[0]
-            else {
-                bail!("Invalid first operand: {:?}", instr.def.operands[0]);
-            };
-
-        match &instr.def.operands[1] {
-            // LD reg, imm16
-            Operand::Immediate16 => self.regs.write(dest, instr.imm16(0)?)?,
+        // Source operand
+        let val: u16 = match &instr.def.operands[1] {
+            // LD _, imm16
+            Operand::Immediate16 => instr.imm16(0)?,
+            // LD _, reg
+            Operand::Register(reg) => self.regs.read(*reg),
             _ => todo!(),
+        };
+
+        // Destination operand
+        match instr.def.operands[0] {
+            // LD reg, _
+            Operand::Register(dest) => self.regs.write(dest, val)?,
+            // LD (reg-), _
+            Operand::RegisterIndirectDec(dest) => {
+                self.bus.write(self.regs.read_dec(dest)?, val.try_into()?)
+            }
+            _ => bail!("Invalid first operand: {:?}", instr.def.operands[0]),
         }
 
         Ok(OpOk::ok(self, instr))
@@ -363,5 +372,15 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x00);
         assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_ld_ind_reg_dec_reg() {
+        let mut c = cpu(&[0x32]);
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.regs.a = 0x5A;
+        cpu_run(&mut c);
+        assert_eq!((c.regs.h, c.regs.l), (0x11, 0x21));
+        assert_eq!(c.bus.read(0x1122), 0x5A);
     }
 }
