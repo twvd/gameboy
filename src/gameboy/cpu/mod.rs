@@ -1,4 +1,4 @@
 pub mod cpu;
 pub mod instruction;
-mod instructions;
+pub mod instructions;
 mod regs;
