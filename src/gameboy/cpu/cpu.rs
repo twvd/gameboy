@@ -353,20 +353,20 @@ mod tests {
 
     #[test]
     fn op_ld_reg_imm16() {
-        let cpu = run(&[0x31, 0x34, 0x12]);
+        let cpu = run(&[0x31, 0x34, 0x12]); // LD SP,0x1234
         assert_eq!(cpu.regs.sp, 0x1234);
     }
 
     #[test]
     fn op_xor_reg() {
-        let mut c = cpu(&[0xA8]);
+        let mut c = cpu(&[0xA8]); // XOR A
         c.regs.a = 0x55;
         c.regs.b = 0xAA;
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0xFF);
         assert!(!c.regs.test_flag(Flag::Z));
 
-        let mut c = cpu(&[0xA8]);
+        let mut c = cpu(&[0xA8]); // XOR A
         c.regs.a = 0xAA;
         c.regs.b = 0xAA;
         cpu_run(&mut c);
@@ -376,11 +376,19 @@ mod tests {
 
     #[test]
     fn op_ld_ind_reg_dec_reg() {
-        let mut c = cpu(&[0x32]);
+        let mut c = cpu(&[0x32]); // LD (HL-),A
         (c.regs.h, c.regs.l) = (0x11, 0x22);
         c.regs.a = 0x5A;
         cpu_run(&mut c);
         assert_eq!((c.regs.h, c.regs.l), (0x11, 0x21));
         assert_eq!(c.bus.read(0x1122), 0x5A);
+    }
+
+    #[test]
+    fn op_ld_reg_reg() {
+        let mut c = cpu(&[0x78]); // LD A,B
+        c.regs.b = 0x55;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x55);
     }
 }
