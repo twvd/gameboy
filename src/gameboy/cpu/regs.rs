@@ -22,6 +22,12 @@ pub enum Flag {
 
 const FLAG_MASK: u8 = 0xF0;
 
+/// Bit-width of a register (see Register::width())
+pub enum RegisterWidth {
+    EightBit,
+    SixteenBit,
+}
+
 /// Enumeration of registers
 #[derive(Debug, Copy, Clone)]
 pub enum Register {
@@ -44,8 +50,8 @@ pub enum Register {
 }
 
 impl Register {
-    /// Width of the register, in bytes.
-    pub const fn width(&self) -> usize {
+    /// Width of the register.
+    pub const fn width(&self) -> RegisterWidth {
         match self {
             Register::A
             | Register::F
@@ -54,14 +60,14 @@ impl Register {
             | Register::D
             | Register::E
             | Register::L
-            | Register::H => 1,
+            | Register::H => RegisterWidth::EightBit,
 
             Register::AF
             | Register::BC
             | Register::DE
             | Register::HL
             | Register::SP
-            | Register::PC => 2,
+            | Register::PC => RegisterWidth::SixteenBit,
         }
     }
 }
@@ -148,7 +154,8 @@ impl RegisterFile {
         Ok(())
     }
 
-    fn read(&self, reg: Register) -> u16 {
+    /// Read an 8-bit or 16-bit register.
+    pub fn read(&self, reg: Register) -> u16 {
         let reg16 = |msb: u8, lsb: u8| (msb as u16) << 8 | lsb as u16;
 
         match reg {
@@ -177,15 +184,8 @@ impl RegisterFile {
     /// Reads an 8-bit register
     /// Returns an error if requested register is not 8-bit.
     pub fn read8(&self, reg: Register) -> Result<u8> {
-        match reg {
-            Register::A
-            | Register::B
-            | Register::C
-            | Register::D
-            | Register::E
-            | Register::F
-            | Register::H
-            | Register::L => Ok(self.read(reg) as u8),
+        match reg.width() {
+            RegisterWidth::EightBit => Ok(self.read(reg) as u8),
             _ => bail!("Attempting 8-bit read on 16-bit register {:?}", reg),
         }
     }
@@ -193,13 +193,8 @@ impl RegisterFile {
     /// Reads an 16-bit register
     /// Returns an error if requested register is not 16-bit.
     pub fn read16(&self, reg: Register) -> Result<u16> {
-        match reg {
-            Register::AF
-            | Register::BC
-            | Register::DE
-            | Register::HL
-            | Register::PC
-            | Register::SP => Ok(self.read(reg)),
+        match reg.width() {
+            RegisterWidth::SixteenBit => Ok(self.read(reg)),
             _ => bail!("Attempting 16-bit read on 8-bit register {:?}", reg),
         }
     }
