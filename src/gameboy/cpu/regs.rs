@@ -199,6 +199,22 @@ impl RegisterFile {
         }
     }
 
+    /// Read register and increment.
+    pub fn read_inc(&mut self, reg: Register) -> Result<u16> {
+        match reg.width() {
+            RegisterWidth::EightBit => Ok(self.read8_inc(reg)?.try_into()?),
+            RegisterWidth::SixteenBit => Ok(self.read16_inc(reg)?),
+        }
+    }
+
+    /// Read register and decrement.
+    pub fn read_dec(&mut self, reg: Register) -> Result<u16> {
+        match reg.width() {
+            RegisterWidth::EightBit => Ok(self.read8_dec(reg)?.try_into()?),
+            RegisterWidth::SixteenBit => Ok(self.read16_dec(reg)?),
+        }
+    }
+
     /// Read 8-bit register and increment.
     pub fn read8_inc(&mut self, reg: Register) -> Result<u8> {
         let val = self.read8(reg)?;
@@ -543,5 +559,31 @@ mod tests {
         (r.h, r.l) = (0, 0);
         assert_eq!(r.read16_dec(Register::HL).unwrap(), 0);
         assert_eq!((r.h, r.l), (0xFF, 0xFF));
+    }
+
+    #[test]
+    fn read_inc() {
+        let mut r = RegisterFile::new();
+        r.a = 12;
+        assert_eq!(r.read_inc(Register::A).unwrap(), 12);
+        assert_eq!(r.a, 13);
+
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x12, 0x34);
+        assert_eq!(r.read_inc(Register::HL).unwrap(), 0x1234);
+        assert_eq!((r.h, r.l), (0x12, 0x35));
+    }
+
+    #[test]
+    fn read_dec() {
+        let mut r = RegisterFile::new();
+        r.a = 12;
+        assert_eq!(r.read_dec(Register::A).unwrap(), 12);
+        assert_eq!(r.a, 11);
+
+        let mut r = RegisterFile::new();
+        (r.h, r.l) = (0x12, 0x34);
+        assert_eq!(r.read_dec(Register::HL).unwrap(), 0x1234);
+        assert_eq!((r.h, r.l), (0x12, 0x33));
     }
 }
