@@ -13,13 +13,13 @@ pub enum Operand {
     None,
     Constant(u8),
     Register(Register),
-    RegisterPtr(Register),
-    RegisterPtrInc(Register),
-    RegisterPtrDec(Register),
+    RegisterIndirect(Register),
+    RegisterIndirectInc(Register),
+    RegisterIndirectDec(Register),
     Immediate8,
     Immediate16,
-    ImmediatePtr8,
-    ImmediatePtr16,
+    ImmediateIndirect8,
+    ImmediateIndirect16,
     Relative8,
     SPRelative8,
 }
@@ -107,12 +107,12 @@ impl Instruction {
         for operand in &def.operands {
             match operand {
                 Operand::Immediate8
-                | Operand::ImmediatePtr8
+                | Operand::ImmediateIndirect8
                 | Operand::Relative8
                 | Operand::SPRelative8 => {
                     immediate.push(ImmediateVal::Immediate8(rd()?));
                 }
-                Operand::Immediate16 | Operand::ImmediatePtr16 => {
+                Operand::Immediate16 | Operand::ImmediateIndirect16 => {
                     let mut val: u16 = rd()? as u16;
                     val |= (rd()? as u16) << 8;
                     immediate.push(ImmediateVal::Immediate16(val));
@@ -167,7 +167,7 @@ impl fmt::Display for Instruction {
                 Operand::Immediate8 => {
                     s.replacen("d8", format!("{}", i.next().ok_or(fmt::Error)?).as_str(), 1)
                 }
-                Operand::ImmediatePtr8 => {
+                Operand::ImmediateIndirect8 => {
                     s.replacen("a8", format!("{}", i.next().ok_or(fmt::Error)?).as_str(), 1)
                 }
                 Operand::Immediate16 => s.replacen(
@@ -175,7 +175,7 @@ impl fmt::Display for Instruction {
                     format!("{}", i.next().ok_or(fmt::Error)?).as_str(),
                     1,
                 ),
-                Operand::ImmediatePtr16 => s.replacen(
+                Operand::ImmediateIndirect16 => s.replacen(
                     "a16",
                     format!("{}", i.next().ok_or(fmt::Error)?).as_str(),
                     1,

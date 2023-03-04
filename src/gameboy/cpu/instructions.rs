@@ -24,7 +24,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (BC),A",
         operands: [
-            Operand::RegisterPtr(Register::BC),
+            Operand::RegisterIndirect(Register::BC),
             Operand::Register(Register::A),
         ],
         len: 1,
@@ -74,7 +74,10 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LD (a16),SP (3), - - - -
     InstructionDef {
         mnemonic: "LD (a16),SP",
-        operands: [Operand::ImmediatePtr16, Operand::Register(Register::SP)],
+        operands: [
+            Operand::ImmediateIndirect16,
+            Operand::Register(Register::SP),
+        ],
         len: 3,
         cycles: [20, 20],
         func: CPU::op_ld,
@@ -95,7 +98,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(BC)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::BC),
+            Operand::RegisterIndirect(Register::BC),
         ],
         len: 1,
         cycles: [8, 8],
@@ -161,7 +164,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (DE),A",
         operands: [
-            Operand::RegisterPtr(Register::DE),
+            Operand::RegisterIndirect(Register::DE),
             Operand::Register(Register::A),
         ],
         len: 1,
@@ -232,7 +235,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(DE)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::DE),
+            Operand::RegisterIndirect(Register::DE),
         ],
         len: 1,
         cycles: [8, 8],
@@ -298,7 +301,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL+),A",
         operands: [
-            Operand::RegisterPtrInc(Register::HL),
+            Operand::RegisterIndirectInc(Register::HL),
             Operand::Register(Register::A),
         ],
         len: 1,
@@ -369,7 +372,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(HL+)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtrInc(Register::HL),
+            Operand::RegisterIndirectInc(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -435,7 +438,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL-),A",
         operands: [
-            Operand::RegisterPtrDec(Register::HL),
+            Operand::RegisterIndirectDec(Register::HL),
             Operand::Register(Register::A),
         ],
         len: 1,
@@ -453,7 +456,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // INC (HL) (1), Z 0 H -
     InstructionDef {
         mnemonic: "INC (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [12, 12],
         func: CPU::op_inc,
@@ -461,7 +464,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // DEC (HL) (1), Z 1 H -
     InstructionDef {
         mnemonic: "DEC (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [12, 12],
         func: CPU::op_dec,
@@ -469,7 +472,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LD (HL),d8 (2), - - - -
     InstructionDef {
         mnemonic: "LD (HL),d8",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::Immediate8],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::Immediate8],
         len: 2,
         cycles: [12, 12],
         func: CPU::op_ld,
@@ -506,7 +509,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(HL-)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtrDec(Register::HL),
+            Operand::RegisterIndirectDec(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -623,7 +626,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD B,(HL)",
         operands: [
             Operand::Register(Register::B),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -711,7 +714,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD C,(HL)",
         operands: [
             Operand::Register(Register::C),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -799,7 +802,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD D,(HL)",
         operands: [
             Operand::Register(Register::D),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -887,7 +890,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD E,(HL)",
         operands: [
             Operand::Register(Register::E),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -975,7 +978,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD H,(HL)",
         operands: [
             Operand::Register(Register::H),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1063,7 +1066,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD L,(HL)",
         operands: [
             Operand::Register(Register::L),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1084,7 +1087,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),B",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::B),
         ],
         len: 1,
@@ -1095,7 +1098,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),C",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::C),
         ],
         len: 1,
@@ -1106,7 +1109,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),D",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::D),
         ],
         len: 1,
@@ -1117,7 +1120,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),E",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::E),
         ],
         len: 1,
@@ -1128,7 +1131,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),H",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::H),
         ],
         len: 1,
@@ -1139,7 +1142,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),L",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::L),
         ],
         len: 1,
@@ -1158,7 +1161,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (HL),A",
         operands: [
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
             Operand::Register(Register::A),
         ],
         len: 1,
@@ -1236,7 +1239,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(HL)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1324,7 +1327,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "ADD A,(HL)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1412,7 +1415,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "ADC A,(HL)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1480,7 +1483,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // SUB (HL) (1), Z 1 H C
     InstructionDef {
         mnemonic: "SUB (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
         func: CPU::op_sub,
@@ -1564,7 +1567,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "SBC A,(HL)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::HL),
+            Operand::RegisterIndirect(Register::HL),
         ],
         len: 1,
         cycles: [8, 8],
@@ -1632,7 +1635,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // AND (HL) (1), Z 0 1 0
     InstructionDef {
         mnemonic: "AND (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
         func: CPU::op_and,
@@ -1696,7 +1699,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // XOR (HL) (1), Z 0 0 0
     InstructionDef {
         mnemonic: "XOR (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
         func: CPU::op_xor,
@@ -1760,7 +1763,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // OR (HL) (1), Z 0 0 0
     InstructionDef {
         mnemonic: "OR (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
         func: CPU::op_or,
@@ -1824,7 +1827,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CP (HL) (1), Z 1 H C
     InstructionDef {
         mnemonic: "CP (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
         func: CPU::op_cp,
@@ -1856,7 +1859,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP NZ,a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP NZ,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 12],
         func: CPU::op_jp_nz,
@@ -1864,7 +1867,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 16],
         func: CPU::op_jp,
@@ -1872,7 +1875,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL NZ,a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL NZ,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [24, 12],
         func: CPU::op_call_nz,
@@ -1920,7 +1923,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP Z,a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP Z,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 12],
         func: CPU::op_jp_z,
@@ -1936,7 +1939,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL Z,a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL Z,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [24, 12],
         func: CPU::op_call_z,
@@ -1944,7 +1947,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [24, 24],
         func: CPU::op_call,
@@ -1984,7 +1987,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP NC,a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP NC,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 12],
         func: CPU::op_jp_nc,
@@ -2000,7 +2003,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL NC,a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL NC,a16",
-        operands: [Operand::ImmediatePtr16, Operand::None],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [24, 12],
         func: CPU::op_call_nc,
@@ -2048,7 +2051,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP C,a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP C,a16",
-        operands: [Operand::Register(Register::C), Operand::ImmediatePtr16],
+        operands: [Operand::Register(Register::C), Operand::ImmediateIndirect16],
         len: 3,
         cycles: [16, 12],
         func: CPU::op_jp,
@@ -2064,7 +2067,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL C,a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL C,a16",
-        operands: [Operand::Register(Register::C), Operand::ImmediatePtr16],
+        operands: [Operand::Register(Register::C), Operand::ImmediateIndirect16],
         len: 3,
         cycles: [24, 12],
         func: CPU::op_call,
@@ -2096,7 +2099,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LDH (a8),A (2), - - - -
     InstructionDef {
         mnemonic: "LDH (a8),A",
-        operands: [Operand::ImmediatePtr8, Operand::Register(Register::A)],
+        operands: [Operand::ImmediateIndirect8, Operand::Register(Register::A)],
         len: 2,
         cycles: [12, 12],
         func: CPU::op_ldh,
@@ -2113,7 +2116,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     InstructionDef {
         mnemonic: "LD (C),A",
         operands: [
-            Operand::RegisterPtr(Register::C),
+            Operand::RegisterIndirect(Register::C),
             Operand::Register(Register::A),
         ],
         len: 2,
@@ -2171,7 +2174,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP (HL) (1), - - - -
     InstructionDef {
         mnemonic: "JP (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [4, 4],
         func: CPU::op_jp,
@@ -2179,7 +2182,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LD (a16),A (3), - - - -
     InstructionDef {
         mnemonic: "LD (a16),A",
-        operands: [Operand::ImmediatePtr16, Operand::Register(Register::A)],
+        operands: [Operand::ImmediateIndirect16, Operand::Register(Register::A)],
         len: 3,
         cycles: [16, 16],
         func: CPU::op_ld,
@@ -2227,7 +2230,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LDH A,(a8) (2), - - - -
     InstructionDef {
         mnemonic: "LDH A,(a8)",
-        operands: [Operand::Register(Register::A), Operand::ImmediatePtr8],
+        operands: [Operand::Register(Register::A), Operand::ImmediateIndirect8],
         len: 2,
         cycles: [12, 12],
         func: CPU::op_ldh,
@@ -2245,7 +2248,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "LD A,(C)",
         operands: [
             Operand::Register(Register::A),
-            Operand::RegisterPtr(Register::C),
+            Operand::RegisterIndirect(Register::C),
         ],
         len: 2,
         cycles: [8, 8],
@@ -2313,7 +2316,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // LD A,(a16) (3), - - - -
     InstructionDef {
         mnemonic: "LD A,(a16)",
-        operands: [Operand::Register(Register::A), Operand::ImmediatePtr16],
+        operands: [Operand::Register(Register::A), Operand::ImmediateIndirect16],
         len: 3,
         cycles: [16, 16],
         func: CPU::op_ld,
@@ -2413,7 +2416,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RLC (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "RLC (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_rlc,
@@ -2477,7 +2480,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RRC (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "RRC (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_rrc,
@@ -2541,7 +2544,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RL (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "RL (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_rl,
@@ -2605,7 +2608,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RR (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "RR (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_rr,
@@ -2669,7 +2672,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SLA (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "SLA (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_sla,
@@ -2733,7 +2736,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SRA (HL) (2), Z 0 0 0
     InstructionDef {
         mnemonic: "SRA (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_sra,
@@ -2797,7 +2800,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SWAP (HL) (2), Z 0 0 0
     InstructionDef {
         mnemonic: "SWAP (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_swap,
@@ -2861,7 +2864,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SRL (HL) (2), Z 0 0 C
     InstructionDef {
         mnemonic: "SRL (HL)",
-        operands: [Operand::RegisterPtr(Register::HL), Operand::None],
+        operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_srl,
@@ -2925,7 +2928,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 0,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 0,(HL)",
-        operands: [Operand::Constant(0), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(0),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -2989,7 +2995,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 1,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 1,(HL)",
-        operands: [Operand::Constant(1), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(1),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3053,7 +3062,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 2,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 2,(HL)",
-        operands: [Operand::Constant(2), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(2),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3117,7 +3129,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 3,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 3,(HL)",
-        operands: [Operand::Constant(3), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(3),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3181,7 +3196,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 4,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 4,(HL)",
-        operands: [Operand::Constant(4), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(4),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3245,7 +3263,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 5,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 5,(HL)",
-        operands: [Operand::Constant(5), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(5),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3309,7 +3330,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 6,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 6,(HL)",
-        operands: [Operand::Constant(6), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(6),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3373,7 +3397,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // BIT 7,(HL) (2), Z 0 1 -
     InstructionDef {
         mnemonic: "BIT 7,(HL)",
-        operands: [Operand::Constant(7), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(7),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_bit,
@@ -3437,7 +3464,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 0,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 0,(HL)",
-        operands: [Operand::Constant(0), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(0),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3501,7 +3531,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 1,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 1,(HL)",
-        operands: [Operand::Constant(1), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(1),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3565,7 +3598,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 2,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 2,(HL)",
-        operands: [Operand::Constant(2), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(2),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3629,7 +3665,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 3,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 3,(HL)",
-        operands: [Operand::Constant(3), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(3),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3693,7 +3732,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 4,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 4,(HL)",
-        operands: [Operand::Constant(4), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(4),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3757,7 +3799,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 5,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 5,(HL)",
-        operands: [Operand::Constant(5), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(5),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3821,7 +3866,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 6,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 6,(HL)",
-        operands: [Operand::Constant(6), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(6),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3885,7 +3933,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // RES 7,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "RES 7,(HL)",
-        operands: [Operand::Constant(7), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(7),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_res,
@@ -3949,7 +4000,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 0,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 0,(HL)",
-        operands: [Operand::Constant(0), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(0),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4013,7 +4067,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 1,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 1,(HL)",
-        operands: [Operand::Constant(1), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(1),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4077,7 +4134,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 2,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 2,(HL)",
-        operands: [Operand::Constant(2), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(2),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4141,7 +4201,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 3,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 3,(HL)",
-        operands: [Operand::Constant(3), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(3),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4205,7 +4268,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 4,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 4,(HL)",
-        operands: [Operand::Constant(4), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(4),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4269,7 +4335,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 5,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 5,(HL)",
-        operands: [Operand::Constant(5), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(5),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4333,7 +4402,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 6,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 6,(HL)",
-        operands: [Operand::Constant(6), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(6),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
@@ -4397,7 +4469,10 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
     // SET 7,(HL) (2), - - - -
     InstructionDef {
         mnemonic: "SET 7,(HL)",
-        operands: [Operand::Constant(7), Operand::RegisterPtr(Register::HL)],
+        operands: [
+            Operand::Constant(7),
+            Operand::RegisterIndirect(Register::HL),
+        ],
         len: 2,
         cycles: [16, 16],
         func: CPU::op_set,
