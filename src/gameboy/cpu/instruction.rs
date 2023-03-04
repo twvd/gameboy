@@ -97,7 +97,7 @@ impl Instruction {
         let b = rd()?;
         let cb = b == 0xCB;
         let def: &InstructionDef = if cb {
-            &INSTRUCTIONS_CB[b as usize]
+            &INSTRUCTIONS_CB[rd()? as usize]
         } else {
             &INSTRUCTIONS[b as usize]
         };
@@ -187,5 +187,24 @@ impl fmt::Display for Instruction {
             }
         }
         write!(f, "{:02X?} {}", self.raw, s.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instruction_decode() {
+        let test = vec![0x00];
+        let i = Instruction::decode(&mut test.into_iter()).unwrap();
+        assert!(i.def.mnemonic == INSTRUCTIONS[0].mnemonic);
+    }
+
+    #[test]
+    fn instruction_decode_cb() {
+        let test = vec![0xCB, 0x00];
+        let i = Instruction::decode(&mut test.into_iter()).unwrap();
+        assert!(i.def.mnemonic == INSTRUCTIONS_CB[0].mnemonic);
     }
 }
