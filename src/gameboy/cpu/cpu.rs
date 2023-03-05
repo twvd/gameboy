@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 use super::super::bus::bus::{Bus, BusIterator};
 use super::instruction::{Instruction, Operand};
-use super::regs::{Flag, Register, RegisterFile};
+use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
 
 /// Return type of CPU::op_* functions
 type CPUOpResult = Result<OpOk>;
@@ -234,12 +234,26 @@ impl CPU {
         };
 
         // Destination operand
+        let indreg = |r: Register, regval| match r.width() {
+            RegisterWidth::SixteenBit => regval,
+            RegisterWidth::EightBit => {
+                assert_eq!(regval & !0xFF, 0);
+                0xFF00 + regval
+            }
+        };
+
         match instr.def.operands[0] {
             // LD reg, _
-            Operand::Register(dest) => self.regs.write(dest, val)?,
+            Operand::Register(dest) => self.regs.write(dest, val.try_into()?)?,
+            // LD (reg), _
+            Operand::RegisterIndirect(dest) => {
+                let addr = self.regs.read(dest);
+                self.bus.write(indreg(dest, addr), val.try_into()?)
+            }
             // LD (reg-), _
             Operand::RegisterIndirectDec(dest) => {
-                self.bus.write(self.regs.read_dec(dest)?, val.try_into()?)
+                let addr = self.regs.read_dec(dest)?;
+                self.bus.write(indreg(dest, addr), val.try_into()?)
             }
             _ => bail!("Invalid first operand: {:?}", instr.def.operands[0]),
         }
@@ -486,7 +500,25 @@ mod tests {
     }
 
     #[test]
-    fn op_ld_ind_reg_dec_reg() {
+    fn op_ld_indreg8_reg() {
+        let mut c = cpu(&[0xE2]); // LD (C),A
+        c.regs.c = 0x11;
+        c.regs.a = 0x5A;
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0xFF11), 0x5A);
+    }
+
+    #[test]
+    fn op_ld_indreg16_reg() {
+        let mut c = cpu(&[0x70]); // LD (HL),B
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.regs.b = 0x5A;
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0x5A);
+    }
+
+    #[test]
+    fn op_ld_indreg16_dec_reg() {
         let mut c = cpu(&[0x32]); // LD (HL-),A
         (c.regs.h, c.regs.l) = (0x11, 0x22);
         c.regs.a = 0x5A;
