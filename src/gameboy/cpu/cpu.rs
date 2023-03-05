@@ -256,6 +256,11 @@ impl CPU {
                 let addr = self.regs.read_dec(dest)?;
                 self.bus.write(indreg(dest, addr), val.try_into()?)
             }
+            // LDH (a8), _
+            Operand::ImmediateIndirect8 => {
+                let addr = 0xFF00_u16 + instr.imm8(0)? as u16;
+                self.bus.write(addr, val.try_into()?)
+            }
             _ => bail!("Invalid first operand: {:?}", instr.def.operands[0]),
         }
 
@@ -556,6 +561,12 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!((c.regs.h, c.regs.l), (0x11, 0x21));
         assert_eq!(c.bus.read(0x1122), 0x5A);
+    }
+
+    #[test]
+    fn op_ld_indimm8_reg() {
+        let c = run_reg(&[0xE0, 0x5A], Register::A, 0x12);
+        assert_eq!(c.bus.read(0xFF5A), 0x12);
     }
 
     #[test]

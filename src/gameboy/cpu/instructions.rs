@@ -2102,7 +2102,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::ImmediateIndirect8, Operand::Register(Register::A)],
         len: 2,
         cycles: [12, 12],
-        func: CPU::op_ldh,
+        func: CPU::op_ld,
     },
     // POP HL (1), - - - -
     InstructionDef {
