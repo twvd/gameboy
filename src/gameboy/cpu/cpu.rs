@@ -122,8 +122,28 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_bit(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// BIT b,n - Test for bit 'b' in 'n'
+    pub fn op_bit(&mut self, instr: &Instruction) -> CPUOpResult {
+        // BIT const, _
+        let Operand::Constant(bit) = instr.def.operands[0]
+            else { bail!("Unknown first operand {:?}", instr.def.operands[0]) };
+
+        // This is always an 8-bit operation.
+        assert!((0..8).contains(&bit));
+
+        let val = match instr.def.operands[1] {
+            // BIT _, reg
+            Operand::Register(reg) => self.regs.read8(reg)?,
+            _ => todo!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::Z, (val & (1 << bit) == 0)),
+            (Flag::H, true),
+            (Flag::N, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_rl(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -391,14 +411,14 @@ mod tests {
 
     #[test]
     fn op_xor_reg() {
-        let mut c = cpu(&[0xA8]); // XOR A
+        let mut c = cpu(&[0xA8]); // XOR B
         c.regs.a = 0x55;
         c.regs.b = 0xAA;
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0xFF);
         assert!(!c.regs.test_flag(Flag::Z));
 
-        let mut c = cpu(&[0xA8]); // XOR A
+        let mut c = cpu(&[0xA8]); // XOR B
         c.regs.a = 0xAA;
         c.regs.b = 0xAA;
         cpu_run(&mut c);
@@ -447,5 +467,20 @@ mod tests {
 
         let c = run(&[0xCB, 0x81]); // RES 0,C
         assert_eq!(c.regs.c, 0x00);
+    }
+
+    #[test]
+    fn op_bit_reg() {
+        let mut c = cpu(&[0xCB, 0x47]); // BIT 0,A
+        c.regs.a = 0x01;
+        cpu_run(&mut c);
+        assert!(
+            !c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
+        );
+
+        let c = run(&[0xCB, 0x61]); // BIT 4,C
+        assert!(
+            c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
+        );
     }
 }
