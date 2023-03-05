@@ -37,7 +37,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::BC), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_inc,
+        func: CPU::op_inc_16b,
     },
     // INC B (1), Z 0 H -
     InstructionDef {
@@ -45,7 +45,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::B), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC B (1), Z 1 H -
     InstructionDef {
@@ -53,7 +53,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::B), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD B,d8 (2), - - - -
     InstructionDef {
@@ -110,7 +110,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::BC), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_dec,
+        func: CPU::op_dec_16b,
     },
     // INC C (1), Z 0 H -
     InstructionDef {
@@ -118,7 +118,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::C), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC C (1), Z 1 H -
     InstructionDef {
@@ -126,7 +126,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::C), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD C,d8 (2), - - - -
     InstructionDef {
@@ -177,7 +177,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::DE), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_inc,
+        func: CPU::op_inc_16b,
     },
     // INC D (1), Z 0 H -
     InstructionDef {
@@ -185,7 +185,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::D), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC D (1), Z 1 H -
     InstructionDef {
@@ -193,7 +193,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::D), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD D,d8 (2), - - - -
     InstructionDef {
@@ -247,7 +247,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::DE), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_dec,
+        func: CPU::op_dec_16b,
     },
     // INC E (1), Z 0 H -
     InstructionDef {
@@ -255,7 +255,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::E), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC E (1), Z 1 H -
     InstructionDef {
@@ -263,7 +263,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::E), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD E,d8 (2), - - - -
     InstructionDef {
@@ -314,7 +314,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_inc,
+        func: CPU::op_inc_16b,
     },
     // INC H (1), Z 0 H -
     InstructionDef {
@@ -322,7 +322,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::H), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC H (1), Z 1 H -
     InstructionDef {
@@ -330,7 +330,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::H), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD H,d8 (2), - - - -
     InstructionDef {
@@ -384,7 +384,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::HL), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_dec,
+        func: CPU::op_dec_16b,
     },
     // INC L (1), Z 0 H -
     InstructionDef {
@@ -392,7 +392,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::L), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC L (1), Z 1 H -
     InstructionDef {
@@ -400,7 +400,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::L), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD L,d8 (2), - - - -
     InstructionDef {
@@ -451,7 +451,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::SP), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_inc,
+        func: CPU::op_inc_16b,
     },
     // INC (HL) (1), Z 0 H -
     InstructionDef {
@@ -459,7 +459,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [12, 12],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC (HL) (1), Z 1 H -
     InstructionDef {
@@ -467,7 +467,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::RegisterIndirect(Register::HL), Operand::None],
         len: 1,
         cycles: [12, 12],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD (HL),d8 (2), - - - -
     InstructionDef {
@@ -521,7 +521,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::SP), Operand::None],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_dec,
+        func: CPU::op_dec_16b,
     },
     // INC A (1), Z 0 H -
     InstructionDef {
@@ -529,7 +529,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::A), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_inc,
+        func: CPU::op_inc_8b,
     },
     // DEC A (1), Z 1 H -
     InstructionDef {
@@ -537,7 +537,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::A), Operand::None],
         len: 1,
         cycles: [4, 4],
-        func: CPU::op_dec,
+        func: CPU::op_dec_8b,
     },
     // LD A,d8 (2), - - - -
     InstructionDef {

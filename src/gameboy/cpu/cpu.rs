@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 
 use super::super::bus::bus::{Bus, BusIterator};
+use super::alu;
 use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
 
@@ -328,11 +329,34 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_dec(&mut self, _instr: &Instruction) -> CPUOpResult {
+    pub fn op_dec_8b(&mut self, _instr: &Instruction) -> CPUOpResult {
         todo!();
     }
 
-    pub fn op_inc(&mut self, _instr: &Instruction) -> CPUOpResult {
+    pub fn op_dec_16b(&mut self, _instr: &Instruction) -> CPUOpResult {
+        todo!();
+    }
+
+    /// INC - Increment (8-bit)
+    pub fn op_inc_8b(&mut self, instr: &Instruction) -> CPUOpResult {
+        match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let res = alu::add_8b(self.regs.read8(reg)?, 1);
+                self.regs.write8(reg, res.result)?;
+                self.regs.write_flags(&[
+                    (Flag::H, res.halfcarry),
+                    (Flag::N, false),
+                    (Flag::Z, (res.result == 0)),
+                ]);
+            }
+            _ => todo!(),
+        }
+
+        Ok(OpOk::ok(self, instr))
+    }
+
+    /// INC - Increment (16-bit)
+    pub fn op_inc_16b(&mut self, _instr: &Instruction) -> CPUOpResult {
         todo!();
     }
 
@@ -454,6 +478,13 @@ mod tests {
 
     fn run(code: &[u8]) -> CPU {
         let mut cpu = cpu(code);
+        cpu_run(&mut cpu);
+        cpu
+    }
+
+    fn run_reg(code: &[u8], reg: Register, val: u16) -> CPU {
+        let mut cpu = cpu(code);
+        cpu.regs.write(reg, val).unwrap();
         cpu_run(&mut cpu);
         cpu
     }
@@ -638,5 +669,26 @@ mod tests {
         );
         assert_eq!(c.regs.pc, 10);
         assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_inc_reg() {
+        let c = run_reg(&[0x3C], Register::A, 0x00);
+        assert_eq!(c.regs.a, 1);
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0x3C], Register::A, 0x0F);
+        assert_eq!(c.regs.a, 0x10);
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0x3C], Register::A, 0xFF);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 }
