@@ -142,6 +142,21 @@ impl Instruction {
         }
     }
 
+    /// Read 8-bit immediate value, as signed.
+    ///
+    /// Returns an error if index is out of bounds or
+    /// the requested value is not 8-bit.
+    pub fn imms8(&self, idx: usize) -> Result<i8> {
+        // TODO fix representation in instruction table and disassembly.
+
+        let immval = self.immediate.get(idx).context("Index out of bounds")?;
+        if let ImmediateVal::Immediate8(val) = immval {
+            Ok(*val as i8)
+        } else {
+            bail!("Value not 8-bit")
+        }
+    }
+
     /// Read 16-bit immediate value.
     ///
     /// Returns an error if index is out of bounds or

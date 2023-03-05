@@ -491,7 +491,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::C), Operand::Relative8],
         len: 2,
         cycles: [12, 8],
-        func: CPU::op_jr,
+        func: CPU::op_jr_c,
     },
     // ADD HL,SP (1), - 0 H C
     InstructionDef {

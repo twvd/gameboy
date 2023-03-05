@@ -29,6 +29,24 @@ impl OpOk {
             cycles: instr.def.cycles[0].into(),
         }
     }
+
+    /// Branch op: successful op, branch not taken.
+    #[inline(always)]
+    fn no_branch(cpu: &CPU, instr: &Instruction) -> Self {
+        Self {
+            pc: cpu.regs.pc + instr.len as u16,
+            cycles: instr.def.cycles[1].into(),
+        }
+    }
+
+    /// Branch op: successful op, branch taken.
+    #[inline(always)]
+    fn branch(_cpu: &CPU, instr: &Instruction, pc: u16) -> Self {
+        Self {
+            pc,
+            cycles: instr.def.cycles[0].into(),
+        }
+    }
 }
 
 /// Gameboy CPU
@@ -302,20 +320,41 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_jr(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JR _, s8 - Jump Relative (conditional/unconditional)
+    fn op_jr_cc(&mut self, instr: &Instruction, cc: bool) -> CPUOpResult {
+        if !cc {
+            return Ok(OpOk::no_branch(self, instr));
+        }
+
+        // value = address - 2.
+        let rel_addr = instr.imms8(0)? + 2;
+        let new_pc = self.regs.pc.wrapping_add_signed(rel_addr.into());
+        Ok(OpOk::branch(self, instr, new_pc))
     }
 
-    pub fn op_jr_nc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JR s8 - Jump Relative (unconditionally)
+    pub fn op_jr(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jr_cc(instr, true)
     }
 
-    pub fn op_jr_nz(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JR NC s8 - Jump Relative (if not carry)
+    pub fn op_jr_nc(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jr_cc(instr, !self.regs.test_flag(Flag::C))
     }
 
-    pub fn op_jr_z(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JR C s8 - Jump Relative (if carry)
+    pub fn op_jr_c(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jr_cc(instr, self.regs.test_flag(Flag::C))
+    }
+
+    /// JR NZ s8 - Jump Relative (if not zero)
+    pub fn op_jr_nz(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jr_cc(instr, !self.regs.test_flag(Flag::Z))
+    }
+
+    /// JR Z s8 - Jump Relative (if zero)
+    pub fn op_jr_z(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jr_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
     pub fn op_jp(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -403,6 +442,18 @@ mod tests {
         cpu
     }
 
+    fn run_flags(code: &[u8], flags: &[Flag]) -> CPU {
+        let mut cpu = cpu(code);
+        cpu.regs.write_flags(
+            &flags
+                .into_iter()
+                .map(|&f| (f, true))
+                .collect::<Vec<(Flag, bool)>>(),
+        );
+        cpu_run(&mut cpu);
+        cpu
+    }
+
     #[test]
     fn op_ld_reg_imm16() {
         let cpu = run(&[0x31, 0x34, 0x12]); // LD SP,0x1234
@@ -482,5 +533,70 @@ mod tests {
         assert!(
             c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
         );
+    }
+
+    #[test]
+    fn op_bit_jr() {
+        let c = run(&[0x18, (-10_i8 - 2) as u8]); // JR -10
+        assert_eq!(c.regs.pc, -10_i16 as u16);
+
+        let c = run(&[0x18, 10 - 2]); // JR 10
+        assert_eq!(c.regs.pc, 10);
+    }
+
+    #[test]
+    fn op_bit_jr_nz() {
+        let c = run(&[0x20, 10 - 2]); // JR NZ 10
+        assert_eq!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(
+            &[0x20, 10 - 2], // JR NZ 10
+            &[Flag::Z],
+        );
+        assert_ne!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 8);
+    }
+
+    #[test]
+    fn op_bit_jr_z() {
+        let c = run(&[0x28, 10 - 2]); // JR Z 10
+        assert_ne!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 8);
+
+        let c = run_flags(
+            &[0x28, 10 - 2], // JR Z 10
+            &[Flag::Z],
+        );
+        assert_eq!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_bit_jr_nc() {
+        let c = run(&[0x30, 10 - 2]); // JR NC 10
+        assert_eq!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(
+            &[0x30, 10 - 2], // JR NC 10
+            &[Flag::C],
+        );
+        assert_ne!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 8);
+    }
+
+    #[test]
+    fn op_bit_jr_c() {
+        let c = run(&[0x38, 10 - 2]); // JR C 10
+        assert_ne!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 8);
+
+        let c = run_flags(
+            &[0x38, 10 - 2], // JR C 10
+            &[Flag::C],
+        );
+        assert_eq!(c.regs.pc, 10);
+        assert_eq!(c.cycles, 12);
     }
 }
