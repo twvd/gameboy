@@ -224,6 +224,8 @@ impl CPU {
     pub fn op_ld(&mut self, instr: &Instruction) -> CPUOpResult {
         // Source operand
         let val: u16 = match &instr.def.operands[1] {
+            // LD _, imm8
+            Operand::Immediate8 => instr.imm8(0)?.into(),
             // LD _, imm16
             Operand::Immediate16 => instr.imm16(0)?,
             // LD _, reg
@@ -458,6 +460,12 @@ mod tests {
     fn op_ld_reg_imm16() {
         let cpu = run(&[0x31, 0x34, 0x12]); // LD SP,0x1234
         assert_eq!(cpu.regs.sp, 0x1234);
+    }
+
+    #[test]
+    fn op_ld_reg_imm8() {
+        let cpu = run(&[0x3E, 0x12]); // LD A,0x12
+        assert_eq!(cpu.regs.a, 0x12);
     }
 
     #[test]
