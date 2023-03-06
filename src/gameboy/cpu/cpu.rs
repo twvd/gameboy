@@ -223,18 +223,6 @@ impl CPU {
 
     /// LD - Load Register
     pub fn op_ld(&mut self, instr: &Instruction) -> CPUOpResult {
-        // Source operand
-        let val: u16 = match &instr.def.operands[1] {
-            // LD _, imm8
-            Operand::Immediate8 => instr.imm8(0)?.into(),
-            // LD _, imm16
-            Operand::Immediate16 => instr.imm16(0)?,
-            // LD _, reg
-            Operand::Register(reg) => self.regs.read(*reg),
-            _ => todo!(),
-        };
-
-        // Destination operand
         let indreg = |r: Register, regval| match r.width() {
             RegisterWidth::SixteenBit => regval,
             RegisterWidth::EightBit => {
@@ -243,6 +231,23 @@ impl CPU {
             }
         };
 
+        // Source operand
+        let val: u16 = match &instr.def.operands[1] {
+            // LD _, imm8
+            Operand::Immediate8 => instr.imm8(0)?.into(),
+            // LD _, imm16
+            Operand::Immediate16 => instr.imm16(0)?,
+            // LD _, reg
+            Operand::Register(reg) => self.regs.read(*reg),
+            // LD _, (reg)
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read(*reg)).into()
+            }
+            _ => todo!(),
+        };
+
+        // Destination operand
         match instr.def.operands[0] {
             // LD reg, _
             Operand::Register(dest) => self.regs.write(dest, val.try_into()?)?,
@@ -575,6 +580,15 @@ mod tests {
         c.regs.b = 0x55;
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x55);
+    }
+
+    #[test]
+    fn op_ld_reg_indreg16() {
+        let mut c = cpu(&[0x1A]); // LD A,(DE)
+        c.regs.write(Register::DE, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x5A);
     }
 
     #[test]

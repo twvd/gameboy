@@ -23,6 +23,7 @@ pub enum Flag {
 const FLAG_MASK: u8 = 0xF0;
 
 /// Bit-width of a register (see Register::width())
+#[derive(Debug, Eq, PartialEq)]
 pub enum RegisterWidth {
     EightBit,
     SixteenBit,
