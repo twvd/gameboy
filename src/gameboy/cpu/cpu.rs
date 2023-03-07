@@ -171,16 +171,50 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_rl(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RL - Rotate left (carry = bit 9)
+    pub fn op_rl(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let result = alu::rotleft_9b(self.regs.read8(reg)?, self.regs.test_flag(Flag::C));
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            _ => todo!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_rla(&mut self, _instr: &Instruction) -> CPUOpResult {
         todo!();
     }
 
-    pub fn op_rlc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RLC - Rotate left (copy to carry)
+    pub fn op_rlc(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let result = alu::rotleft_8b(self.regs.read8(reg)?);
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            _ => todo!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_rlca(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -817,5 +851,53 @@ mod tests {
         let c = run_reg(&[0xC5], Register::BC, 0xABCD);
         assert_ne!(c.regs.sp, 0);
         assert_eq!(c.bus.read16(c.regs.sp), 0xABCD);
+    }
+
+    #[test]
+    fn op_rl_reg() {
+        let c = run_reg(&[0xCB, 0x10], Register::B, 0x80);
+        assert_eq!(c.regs.b, 0x00);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x10], Register::B, 0x40);
+        assert_eq!(c.regs.b, 0x80);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x10], Register::B, 0x00);
+        assert_eq!(c.regs.b, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rlc_reg() {
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x80);
+        assert_eq!(c.regs.b, 0x01);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x40);
+        assert_eq!(c.regs.b, 0x80);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x00);
+        assert_eq!(c.regs.b, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
     }
 }

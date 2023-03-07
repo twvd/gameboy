@@ -14,6 +14,30 @@ pub fn add_8b(a: u8, b: u8) -> ALUResult<u8> {
     }
 }
 
+/// Rotate left with carry
+pub fn rotleft_9b(a: u8, carry: bool) -> ALUResult<u8> {
+    let mut result = (a as u16) << 1;
+    if carry {
+        result |= 1;
+    }
+
+    ALUResult {
+        result: result as u8,
+        carry: result & 0x100 == 0x100,
+        halfcarry: false,
+    }
+}
+
+/// Rotate left, copy to carry
+pub fn rotleft_8b(a: u8) -> ALUResult<u8> {
+    let result = a.rotate_left(1);
+    ALUResult {
+        result: result as u8,
+        carry: a & 0x80 == 0x80,
+        halfcarry: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -57,5 +81,39 @@ mod tests {
         let r = super::add_8b(0xFF, 0xFF);
         assert_eq!(r.result, 0xFE);
         assert!(r.carry);
+    }
+
+    #[test]
+    fn rotleft_8b() {
+        let r = super::rotleft_8b(0b01010101);
+        assert_eq!(r.result, 0b10101010);
+        assert_eq!(r.carry, false);
+
+        let r = super::rotleft_8b(0x80);
+        assert_eq!(r.result, 0x01);
+        assert_eq!(r.carry, true);
+
+        let r = super::rotleft_8b(0x11);
+        assert_eq!(r.result, 0x22);
+        assert_eq!(r.carry, false);
+
+        let r = super::rotleft_8b(0x85);
+        assert_eq!(r.result, 0x0B);
+        assert_eq!(r.carry, true);
+    }
+
+    #[test]
+    fn rotleft_9b() {
+        let r = super::rotleft_9b(0b01010101, false);
+        assert_eq!(r.result, 0b10101010);
+        assert_eq!(r.carry, false);
+
+        let r = super::rotleft_9b(0x80, false);
+        assert_eq!(r.result, 0);
+        assert_eq!(r.carry, true);
+
+        let r = super::rotleft_9b(0x11, false);
+        assert_eq!(r.result, 0x22);
+        assert_eq!(r.carry, false);
     }
 }
