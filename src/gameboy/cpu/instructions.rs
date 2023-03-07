@@ -2067,10 +2067,10 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // CALL C,a16 (3), - - - -
     InstructionDef {
         mnemonic: "CALL C,a16",
-        operands: [Operand::Register(Register::C), Operand::ImmediateIndirect16],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [24, 12],
-        func: CPU::op_call,
+        func: CPU::op_call_c,
     },
     // INVALID
     InstructionDef {

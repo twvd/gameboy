@@ -85,6 +85,12 @@ impl CPU {
         self.cycles
     }
 
+    /// Pushes 16-bits onto the stack.
+    fn stack_push(&mut self, val: u16) {
+        self.regs.sp = self.regs.sp.wrapping_sub(2);
+        self.bus.write16(self.regs.sp, val);
+    }
+
     /// SET/RES generic implementation
     fn op_set_res(&mut self, instr: &Instruction, set: bool) -> CPUOpResult {
         // SET/RES const, _
@@ -423,20 +429,41 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_call(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CALL cc - Call (conditional/unconditional)
+    fn op_call_cc(&mut self, instr: &Instruction, cc: bool) -> CPUOpResult {
+        if !cc {
+            return Ok(OpOk::no_branch(self, instr));
+        }
+
+        let next_addr = self.regs.pc.wrapping_add(instr.len as u16);
+        self.stack_push(next_addr);
+
+        Ok(OpOk::branch(self, instr, instr.imm16(0)?))
     }
 
-    pub fn op_call_nc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CALL - Call (unconditional)
+    pub fn op_call(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_call_cc(instr, true)
     }
 
-    pub fn op_call_nz(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CALL - Call (if carry)
+    pub fn op_call_c(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_call_cc(instr, self.regs.test_flag(Flag::C))
     }
 
-    pub fn op_call_z(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CALL - Call (if not carry)
+    pub fn op_call_nc(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_call_cc(instr, !self.regs.test_flag(Flag::C))
+    }
+
+    /// CALL - Call (if not zero)
+    pub fn op_call_nz(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_call_cc(instr, !self.regs.test_flag(Flag::Z))
+    }
+
+    /// CALL - Call (if zero)
+    pub fn op_call_z(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_call_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
     pub fn op_ret(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -715,5 +742,67 @@ mod tests {
         assert!(c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::Z));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_call() {
+        let mut c = cpu(&[]);
+        c.bus.write_slice(&[0xCD, 0x34, 0x12], 0x8000);
+        c.regs.pc = 0x8000;
+        c.regs.sp = 0xFFFE;
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.regs.sp, 0xFFFC);
+        assert_eq!(c.bus.read16(0xFFFC), 0x8003);
+
+        // Wrapping past 0
+        let c = run(&[0xCD, 0x34, 0x12]);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.regs.sp, 0xFFFE);
+        assert_eq!(c.bus.read16(0xFFFE), 0x0003);
+    }
+
+    #[test]
+    fn op_call_c() {
+        let c = run(&[0xDC, 0x34, 0x12]);
+        assert_ne!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(&[0xDC, 0x34, 0x12], &[Flag::C]);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 24);
+    }
+
+    #[test]
+    fn op_call_nc() {
+        let c = run(&[0xD4, 0x34, 0x12]);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 24);
+
+        let c = run_flags(&[0xD4, 0x34, 0x12], &[Flag::C]);
+        assert_ne!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_call_z() {
+        let c = run(&[0xCC, 0x34, 0x12]);
+        assert_ne!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(&[0xCC, 0x34, 0x12], &[Flag::Z]);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 24);
+    }
+
+    #[test]
+    fn op_call_nz() {
+        let c = run(&[0xC4, 0x34, 0x12]);
+        assert_eq!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 24);
+
+        let c = run_flags(&[0xC4, 0x34, 0x12], &[Flag::Z]);
+        assert_ne!(c.regs.pc, 0x1234);
+        assert_eq!(c.cycles, 12);
     }
 }

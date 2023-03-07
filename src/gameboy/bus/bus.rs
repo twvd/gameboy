@@ -2,10 +2,22 @@ pub trait Bus {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, val: u8);
 
-    fn write_slice(&mut self, from: &[u8], offset: usize) {
+    fn write_slice(&mut self, from: &[u8], offset: u16) {
         for (i, b) in from.into_iter().enumerate() {
-            self.write((offset + i) as u16, *b);
+            self.write(offset.wrapping_add(i as u16), *b);
         }
+    }
+
+    /// Write 16-bits to addr and addr + 1,
+    /// in little endian.
+    fn write16(&mut self, addr: u16, val: u16) {
+        self.write_slice(&u16::to_le_bytes(val), addr);
+    }
+
+    /// Read 16-bits from addr and addr + 1,
+    /// from little endian.
+    fn read16(&self, addr: u16) -> u16 {
+        u16::from_le_bytes([self.read(addr), self.read(addr.wrapping_add(1))])
     }
 }
 
@@ -81,5 +93,21 @@ mod tests {
             assert_eq!(i.next(), Some(a as u8));
         }
         assert_eq!(i.next(), None);
+    }
+
+    #[test]
+    fn bus_write16() {
+        let mut b: Box<dyn Bus> = Box::new(testbus());
+        b.write16(0x1000, 0x55AA);
+        assert_eq!(b.read(0x1000), 0xAA);
+        assert_eq!(b.read(0x1001), 0x55);
+    }
+
+    #[test]
+    fn bus_read16() {
+        let mut b: Box<dyn Bus> = Box::new(testbus());
+        b.write(0x1000, 0xAA);
+        b.write(0x1001, 0x55);
+        assert_eq!(b.read16(0x1000), 0x55AA);
     }
 }
