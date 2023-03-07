@@ -321,8 +321,14 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_push(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// PUSH - Push register onto stack
+    pub fn op_push(&mut self, instr: &Instruction) -> CPUOpResult {
+        let Operand::Register(reg) = instr.def.operands[0]
+            else { unreachable!() };
+        assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+
+        self.stack_push(self.regs.read16(reg)?);
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_pop(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -804,5 +810,12 @@ mod tests {
         let c = run_flags(&[0xC4, 0x34, 0x12], &[Flag::Z]);
         assert_ne!(c.regs.pc, 0x1234);
         assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_push() {
+        let c = run_reg(&[0xC5], Register::BC, 0xABCD);
+        assert_ne!(c.regs.sp, 0);
+        assert_eq!(c.bus.read16(c.regs.sp), 0xABCD);
     }
 }
