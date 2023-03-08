@@ -91,6 +91,13 @@ impl CPU {
         self.bus.write16(self.regs.sp, val);
     }
 
+    /// Pops 16-bits from the stack.
+    fn stack_pop(&mut self) -> u16 {
+        let val = self.bus.read16(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(2);
+        val
+    }
+
     /// SET/RES generic implementation
     fn op_set_res(&mut self, instr: &Instruction, set: bool) -> CPUOpResult {
         // SET/RES const, _
@@ -377,8 +384,15 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_pop(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// POP - Pop register from stack
+    pub fn op_pop(&mut self, instr: &Instruction) -> CPUOpResult {
+        let Operand::Register(reg) = instr.def.operands[0]
+            else { unreachable!() };
+        assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+
+        let val = self.stack_pop();
+        self.regs.write(reg, val)?;
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_adc(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -875,6 +889,16 @@ mod tests {
         let c = run_reg(&[0xC5], Register::BC, 0xABCD);
         assert_ne!(c.regs.sp, 0);
         assert_eq!(c.bus.read16(c.regs.sp), 0xABCD);
+    }
+
+    #[test]
+    fn op_pop() {
+        let mut c = cpu(&[0xC1]);
+        c.stack_push(0xABCD);
+        assert_ne!(c.regs.sp, 0);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.sp, 0);
+        assert_eq!(c.regs.read16(Register::BC).unwrap(), 0xABCD);
     }
 
     #[test]
