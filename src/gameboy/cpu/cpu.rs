@@ -348,8 +348,33 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_cp(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CP - Compare
+    pub fn op_cp(&mut self, instr: &Instruction) -> CPUOpResult {
+        let val = match instr.def.operands[0] {
+            // CP imm8
+            Operand::Immediate8 => instr.imm8(0)?,
+            // CP reg8
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            // CP (reg16)
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            _ => unreachable!(),
+        };
+
+        let result = alu::sub_8b(self.regs.read8(Register::A)?, val);
+        self.regs.write_flags(&[
+            (Flag::Z, result.result == 0),
+            (Flag::H, result.halfcarry),
+            (Flag::C, result.carry),
+            (Flag::N, true),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_cpl(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1139,5 +1164,59 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!(c.regs.pc, 0xABCD);
         assert_eq!(c.cycles, 20);
+    }
+
+    #[test]
+    fn op_cp_imm8() {
+        let c = run_reg(&[0xFE, 0x2F], Register::A, 0x3C);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xFE, 0x3C], Register::A, 0x3C);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xFE, 0x40], Register::A, 0x3C);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_cp_reg8() {
+        let c = run_reg(&[0xB8], Register::B, 0x3C);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xB8], Register::B, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_cp_indreg16() {
+        let mut c = cpu(&[0xBE]);
+        (c.regs.h, c.regs.l) = (0x08, 0x00);
+        c.bus.write(0x0800, 0x3C);
+        cpu_run(&mut c);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xBE], Register::HL, 0x0800);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
     }
 }
