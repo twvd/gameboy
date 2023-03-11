@@ -560,20 +560,39 @@ impl CPU {
         self.op_call_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
-    pub fn op_ret(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RET cc - Return (conditional/unconditional)
+    fn op_ret_cc(&mut self, instr: &Instruction, cc: bool) -> CPUOpResult {
+        if !cc {
+            return Ok(OpOk::no_branch(self, instr));
+        }
+
+        let ret_addr = self.stack_pop();
+        Ok(OpOk::branch(self, instr, ret_addr))
     }
 
-    pub fn op_ret_nc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RET - Return (unconditional)
+    pub fn op_ret(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_ret_cc(instr, true)
     }
 
-    pub fn op_ret_nz(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RET NC - Return (if not carry)
+    pub fn op_ret_nc(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_ret_cc(instr, !self.regs.test_flag(Flag::C))
     }
 
-    pub fn op_ret_z(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RET C - Return (if zero)
+    pub fn op_ret_c(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_ret_cc(instr, self.regs.test_flag(Flag::C))
+    }
+
+    /// RET NZ - Return (if not zero)
+    pub fn op_ret_nz(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_ret_cc(instr, !self.regs.test_flag(Flag::Z))
+    }
+
+    /// RET Z - Return (if zero)
+    pub fn op_ret_z(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_ret_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
     pub fn op_reti(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1044,5 +1063,81 @@ mod tests {
         let c = run_reg(&[0x23], Register::HL, 0xFFFF);
         assert_eq!(c.regs.l, 0x00);
         assert_eq!(c.regs.h, 0x00);
+    }
+
+    #[test]
+    fn op_ret() {
+        let mut c = cpu(&[0xC9]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+    }
+
+    #[test]
+    fn op_ret_z() {
+        let mut c = cpu(&[0xC8]);
+        c.regs.write_flags(&[(Flag::Z, true)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 20);
+
+        let mut c = cpu(&[0xC8]);
+        c.regs.write_flags(&[(Flag::Z, false)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_ne!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 8);
+    }
+
+    #[test]
+    fn op_ret_nz() {
+        let mut c = cpu(&[0xC0]);
+        c.regs.write_flags(&[(Flag::Z, true)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_ne!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 8);
+
+        let mut c = cpu(&[0xC0]);
+        c.regs.write_flags(&[(Flag::Z, false)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 20);
+    }
+
+    #[test]
+    fn op_ret_c() {
+        let mut c = cpu(&[0xD8]);
+        c.regs.write_flags(&[(Flag::C, true)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 20);
+
+        let mut c = cpu(&[0xD8]);
+        c.regs.write_flags(&[(Flag::C, false)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_ne!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 8);
+    }
+
+    #[test]
+    fn op_ret_nc() {
+        let mut c = cpu(&[0xD0]);
+        c.regs.write_flags(&[(Flag::C, true)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_ne!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 8);
+
+        let mut c = cpu(&[0xD0]);
+        c.regs.write_flags(&[(Flag::C, false)]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+        assert_eq!(c.cycles, 20);
     }
 }

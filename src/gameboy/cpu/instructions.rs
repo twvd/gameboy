@@ -2038,7 +2038,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::C), Operand::None],
         len: 1,
         cycles: [20, 8],
-        func: CPU::op_ret,
+        func: CPU::op_ret_c,
     },
     // RETI (1), - - - -
     InstructionDef {
