@@ -411,8 +411,23 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_dec_8b(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// DEC - Decrement (8-bit)
+    pub fn op_dec_8b(&mut self, instr: &Instruction) -> CPUOpResult {
+        match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let res = alu::sub_8b(self.regs.read8(reg)?, 1);
+                self.regs.write8(reg, res.result)?;
+                self.regs.write_flags(&[
+                    (Flag::H, res.halfcarry),
+                    (Flag::N, true),
+                    (Flag::Z, (res.result == 0)),
+                    // Carry not used
+                ]);
+            }
+            _ => todo!(),
+        }
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_dec_16b(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -429,6 +444,7 @@ impl CPU {
                     (Flag::H, res.halfcarry),
                     (Flag::N, false),
                     (Flag::Z, (res.result == 0)),
+                    // Carry not used
                 ]);
             }
             _ => todo!(),
@@ -977,6 +993,23 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_dec_8b() {
+        let c = run_reg(&[0x3D], Register::A, 0x00);
+        assert_eq!(c.regs.a, 0xFF);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0x3D], Register::A, 0x01);
+        assert_eq!(c.regs.a, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::N));
         assert!(c.regs.test_flag(Flag::Z));
     }
 }

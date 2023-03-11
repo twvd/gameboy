@@ -4,13 +4,23 @@ pub struct ALUResult<T> {
     pub carry: bool,
 }
 
-/// 8-bit add with flags
+/// 8-bit add
 pub fn add_8b(a: u8, b: u8) -> ALUResult<u8> {
     let result: u16 = a as u16 + b as u16;
     ALUResult {
         result: result as u8,
         carry: (result > u8::MAX.into()),
         halfcarry: (((a & 0x0F) + (b & 0x0F)) & 0x10) == 0x10,
+    }
+}
+
+/// 8-bit subtract
+pub fn sub_8b(a: u8, b: u8) -> ALUResult<u8> {
+    let result: i16 = a as i16 - b as i16;
+    ALUResult {
+        result: result as u8,
+        carry: result < 0,
+        halfcarry: (result as u8 & 0x0F) > (a & 0x0F),
     }
 }
 
@@ -115,5 +125,23 @@ mod tests {
         let r = super::rotleft_9b(0x11, false);
         assert_eq!(r.result, 0x22);
         assert_eq!(r.carry, false);
+    }
+
+    #[test]
+    fn sub_8b() {
+        let r = super::sub_8b(0x3E, 0x3E);
+        assert_eq!(r.result, 0);
+        assert!(!r.carry);
+        assert!(!r.halfcarry);
+
+        let r = super::sub_8b(0x3E, 0x0F);
+        assert_eq!(r.result, 0x2F);
+        assert!(!r.carry);
+        assert!(r.halfcarry);
+
+        let r = super::sub_8b(0x3E, 0x40);
+        assert_eq!(r.result, 0xFE);
+        assert!(r.carry);
+        assert!(!r.halfcarry);
     }
 }
