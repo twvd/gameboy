@@ -293,9 +293,9 @@ impl CPU {
         // Source operand
         let val: u16 = match &instr.def.operands[1] {
             // LD _, imm8
-            Operand::Immediate8 => instr.imm8(0)?.into(),
+            Operand::Immediate8 => instr.imm8(1)?.into(),
             // LD _, imm16
-            Operand::Immediate16 => instr.imm16(0)?,
+            Operand::Immediate16 => instr.imm16(1)?,
             // LD _, reg
             Operand::Register(reg) => self.regs.read(*reg),
             // LD _, (reg)
@@ -827,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn op_bit_jr() {
+    fn op_jr() {
         let c = run(&[0x18, (-10_i8 - 2) as u8]); // JR -10
         assert_eq!(c.regs.pc, -10_i16 as u16);
 
@@ -836,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn op_bit_jr_nz() {
+    fn op_jr_nz() {
         let c = run(&[0x20, 10 - 2]); // JR NZ 10
         assert_eq!(c.regs.pc, 10);
         assert_eq!(c.cycles, 12);
@@ -850,7 +850,7 @@ mod tests {
     }
 
     #[test]
-    fn op_bit_jr_z() {
+    fn op_jr_z() {
         let c = run(&[0x28, 10 - 2]); // JR Z 10
         assert_ne!(c.regs.pc, 10);
         assert_eq!(c.cycles, 8);
@@ -864,7 +864,7 @@ mod tests {
     }
 
     #[test]
-    fn op_bit_jr_nc() {
+    fn op_jr_nc() {
         let c = run(&[0x30, 10 - 2]); // JR NC 10
         assert_eq!(c.regs.pc, 10);
         assert_eq!(c.cycles, 12);
@@ -878,7 +878,7 @@ mod tests {
     }
 
     #[test]
-    fn op_bit_jr_c() {
+    fn op_jr_c() {
         let c = run(&[0x38, 10 - 2]); // JR C 10
         assert_ne!(c.regs.pc, 10);
         assert_eq!(c.cycles, 8);

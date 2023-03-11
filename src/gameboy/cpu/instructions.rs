@@ -488,7 +488,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JR C,r8 (2), - - - -
     InstructionDef {
         mnemonic: "JR C,r8",
-        operands: [Operand::Register(Register::C), Operand::Relative8],
+        operands: [Operand::Relative8, Operand::None],
         len: 2,
         cycles: [12, 8],
         func: CPU::op_jr_c,
@@ -2035,7 +2035,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // RET C (1), - - - -
     InstructionDef {
         mnemonic: "RET C",
-        operands: [Operand::Register(Register::C), Operand::None],
+        operands: [Operand::None, Operand::None],
         len: 1,
         cycles: [20, 8],
         func: CPU::op_ret_c,
@@ -2051,7 +2051,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // JP C,a16 (3), - - - -
     InstructionDef {
         mnemonic: "JP C,a16",
-        operands: [Operand::Register(Register::C), Operand::ImmediateIndirect16],
+        operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 12],
         func: CPU::op_jp,

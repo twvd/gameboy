@@ -25,7 +25,9 @@ pub enum Operand {
 }
 
 /// A value of an immediate operand of an instruction
+#[derive(Copy, Clone)]
 pub enum ImmediateVal {
+    None,
     Immediate8(u8),
     Immediate16(u16),
 }
@@ -33,6 +35,7 @@ pub enum ImmediateVal {
 impl fmt::Display for ImmediateVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::None => write!(f, "(none)"),
             Self::Immediate8(i) => write!(f, "${:02X}", i),
             Self::Immediate16(i) => write!(f, "${:04X}", i),
         }
@@ -74,8 +77,8 @@ pub struct Instruction {
     /// Reference to the definition.
     pub def: &'static InstructionDef,
 
-    /// Vector of immediate values, if applicable.
-    pub immediate: Vec<ImmediateVal>,
+    /// Immediate values, if applicable.
+    pub immediate: [ImmediateVal; 2],
 
     /// Length of the full instruction.
     pub len: usize,
@@ -103,19 +106,19 @@ impl Instruction {
         };
 
         // Decode immediate values.
-        let mut immediate: Vec<ImmediateVal> = vec![];
-        for operand in &def.operands {
+        let mut immediate: [ImmediateVal; 2] = [ImmediateVal::None; 2];
+        for (i, operand) in def.operands.iter().enumerate() {
             match operand {
                 Operand::Immediate8
                 | Operand::ImmediateIndirect8
                 | Operand::Relative8
                 | Operand::SPRelative8 => {
-                    immediate.push(ImmediateVal::Immediate8(rd()?));
+                    immediate[i] = ImmediateVal::Immediate8(rd()?);
                 }
                 Operand::Immediate16 | Operand::ImmediateIndirect16 => {
                     let mut val: u16 = rd()? as u16;
                     val |= (rd()? as u16) << 8;
-                    immediate.push(ImmediateVal::Immediate16(val));
+                    immediate[i] = ImmediateVal::Immediate16(val);
                 }
                 _ => {}
             }
@@ -174,29 +177,24 @@ impl Instruction {
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = self.def.mnemonic.to_string();
-        let mut i = self.immediate.iter();
 
         // Fill in immediate values.
-        for operand in &self.def.operands {
+        for (i, operand) in self.def.operands.iter().enumerate() {
             s = match operand {
                 Operand::Immediate8 => {
-                    s.replacen("d8", format!("{}", i.next().ok_or(fmt::Error)?).as_str(), 1)
+                    s.replacen("d8", format!("{}", self.immediate[i]).as_str(), 1)
                 }
                 Operand::ImmediateIndirect8 => {
-                    s.replacen("a8", format!("{}", i.next().ok_or(fmt::Error)?).as_str(), 1)
+                    s.replacen("a8", format!("{}", self.immediate[i]).as_str(), 1)
                 }
-                Operand::Immediate16 => s.replacen(
-                    "d16",
-                    format!("{}", i.next().ok_or(fmt::Error)?).as_str(),
-                    1,
-                ),
-                Operand::ImmediateIndirect16 => s.replacen(
-                    "a16",
-                    format!("{}", i.next().ok_or(fmt::Error)?).as_str(),
-                    1,
-                ),
+                Operand::Immediate16 => {
+                    s.replacen("d16", format!("{}", self.immediate[i]).as_str(), 1)
+                }
+                Operand::ImmediateIndirect16 => {
+                    s.replacen("a16", format!("{}", self.immediate[i]).as_str(), 1)
+                }
                 Operand::Relative8 | Operand::SPRelative8 => {
-                    s.replacen("r8", format!("{}", i.next().ok_or(fmt::Error)?).as_str(), 1)
+                    s.replacen("r8", format!("{}", self.immediate[i]).as_str(), 1)
                 }
                 _ => s,
             }
