@@ -459,8 +459,15 @@ impl CPU {
     }
 
     /// INC - Increment (16-bit)
-    pub fn op_inc_16b(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    pub fn op_inc_16b(&mut self, instr: &Instruction) -> CPUOpResult {
+        let Operand::Register(reg) = instr.def.operands[0]
+            else { unreachable!() };
+
+        assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+        self.regs
+            .write(reg, self.regs.read16(reg)?.wrapping_add(1))?;
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// JR _, s8 - Jump Relative (conditional/unconditional)
@@ -1026,5 +1033,16 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::N));
         assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_inc_16b() {
+        let c = run_reg(&[0x23], Register::HL, 0x00);
+        assert_eq!(c.regs.l, 0x01);
+        assert_eq!(c.regs.h, 0x00);
+
+        let c = run_reg(&[0x23], Register::HL, 0xFFFF);
+        assert_eq!(c.regs.l, 0x00);
+        assert_eq!(c.regs.h, 0x00);
     }
 }
