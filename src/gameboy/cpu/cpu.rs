@@ -268,8 +268,9 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_nop(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// NOP - No Operation
+    pub fn op_nop(&mut self, instr: &Instruction) -> CPUOpResult {
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_stop(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1363,5 +1364,10 @@ mod tests {
         assert!(c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_nop() {
+        run(&[0x00]);
     }
 }
