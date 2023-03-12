@@ -1,3 +1,4 @@
+use super::super::iomux::IOMux;
 use super::bus::Bus;
 
 const CART_ROM_BANK_SIZE: usize = 16 * 1024;
@@ -16,6 +17,8 @@ pub struct Gameboybus {
     wram: [u8; u16::MAX as usize + 1],
     vram: [u8; u16::MAX as usize + 1],
     hram: [u8; u16::MAX as usize + 1],
+
+    io: IOMux,
 }
 
 impl Gameboybus {
@@ -29,6 +32,8 @@ impl Gameboybus {
             wram: [0; u16::MAX as usize + 1],
             hram: [0; u16::MAX as usize + 1],
             vram: [0; u16::MAX as usize + 1],
+
+            io: IOMux {},
         };
 
         if let Some(br) = bootrom {
@@ -51,7 +56,7 @@ impl Bus for Gameboybus {
         let addr = addr as usize;
 
         match addr {
-            // Boot ROM / Cartridge bank 0
+            // Boot ROM (or cartridge after disable)
             0x0000..=0x00FF => {
                 if self.boot_rom_enabled {
                     self.boot_rom[addr]
@@ -59,11 +64,14 @@ impl Bus for Gameboybus {
                     self.cart_rom[0][addr]
                 }
             }
+
             // Cartridge bank 0
-            0x0100..=0x3FFF => self.cart_rom[0][addr],
+            0x0000..=0x3FFF => self.cart_rom[0][addr],
+
             // Cartridge bank 1
             // TODO bank switching
             0x4000..=0x7FFF => self.cart_rom[1][addr],
+
             // Video RAM
             0x8000..=0x9FFF => self.vram[addr],
 
@@ -88,8 +96,7 @@ impl Bus for Gameboybus {
             0xFEA0..=0xFEFF => panic!("Read from unusable segment"),
 
             // I/O registers
-            // TODO move this
-            0xFF00..=0xFF7F => self.hram[addr],
+            0xFF00..=0xFF7F => self.io.read(addr as u16),
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr],
@@ -134,8 +141,7 @@ impl Bus for Gameboybus {
             0xFEA0..=0xFEFF => panic!("Write to unusable segment"),
 
             // I/O registers
-            // TODO move this
-            0xFF00..=0xFF7F => self.hram[addr] = val,
+            0xFF00..=0xFF7F => self.io.write(addr as u16, val),
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr] = val,
