@@ -437,8 +437,27 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_sub(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SUB - Subtract (8-bit)
+    pub fn op_sub(&mut self, instr: &Instruction) -> CPUOpResult {
+        let val: u8 = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            _ => todo!(),
+        };
+
+        let res = alu::sub_8b(self.regs.read8(Register::A)?, val);
+
+        self.regs.write8(Register::A, res.result)?;
+        self.regs.write_flags(&[
+            (Flag::Z, (res.result == 0)),
+            (Flag::N, true),
+            (Flag::C, res.carry),
+            (Flag::H, res.halfcarry),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// DEC - Decrement (8-bit)
@@ -1231,6 +1250,39 @@ mod tests {
         assert!(c.regs.test_flag(Flag::Z));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_sub_reg8() {
+        let mut c = cpu(&[0x90]); // SUB B
+        c.regs.write8(Register::A, 0x3E).unwrap();
+        c.regs.write8(Register::B, 0x3E).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let mut c = cpu(&[0x90]); // SUB B
+        c.regs.write8(Register::A, 0x3E).unwrap();
+        c.regs.write8(Register::B, 0x0F).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x2F);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+
+        let mut c = cpu(&[0x90]); // SUB B
+        c.regs.write8(Register::A, 0x3E).unwrap();
+        c.regs.write8(Register::B, 0x40).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0xFE);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::N));
     }
 }

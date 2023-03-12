@@ -27,6 +27,10 @@ fn main() -> Result<()> {
     let f = fs::read(args.filename)?;
     let mut bus = Testbus::new();
     bus.write_slice(&f, 0);
+
+    // Indicate start of VBlank for testing purposes
+    bus.write(0xFF44, 0x90);
+
     let mut cpu = CPU::new(Box::from(bus));
 
     loop {
