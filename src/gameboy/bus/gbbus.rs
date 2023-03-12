@@ -95,6 +95,15 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => panic!("Read from unusable segment"),
 
+            // Boot ROM disable
+            0xFF50 => {
+                if self.boot_rom_enabled {
+                    0
+                } else {
+                    1
+                }
+            }
+
             // I/O registers
             0xFF00..=0xFF7F => self.io.read(addr as u16),
 
@@ -140,6 +149,12 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => panic!("Write to unusable segment"),
 
+            // Boot ROM disable
+            0xFF50 => if val > 0 && self.boot_rom_enabled {
+                println!("Boot ROM disabled!");
+                self.boot_rom_enabled = false;
+            },
+
             // I/O registers
             0xFF00..=0xFF7F => self.io.write(addr as u16, val),
 
@@ -151,5 +166,61 @@ impl Bus for Gameboybus {
 
             _ => unreachable!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bootrom() {
+        let cart = [0xAA_u8; 32 * 1024];
+        let bootrom = [0xBB_u8; 256];
+
+        let b = Gameboybus::new(&cart, Some(&bootrom));
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xBB);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
+
+        let b = Gameboybus::new(&cart, None);
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xAA);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
+    }
+
+    #[test]
+    fn bootrom_disable() {
+        let cart = [0xAA_u8; 32 * 1024];
+        let bootrom = [0xBB_u8; 256];
+
+        let mut b = Gameboybus::new(&cart, Some(&bootrom));
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xBB);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
+
+        // Writing 0 should do nothing
+        b.write(0xFF50, 0); // Boot ROM disable
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xBB);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
+
+        // Disable boot ROM
+        b.write(0xFF50, 1); // Boot ROM disable
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xAA);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
+
+        // Must not be able to reset boot ROM
+        b.write(0xFF50, 0); // Boot ROM disable
+        for i in 0..=0xFF {
+            assert_eq!(b.read(i), 0xAA);
+        }
+        assert_eq!(b.read(0x0100), 0xAA);
     }
 }
