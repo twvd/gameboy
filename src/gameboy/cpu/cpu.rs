@@ -433,8 +433,39 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_add(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// ADD - Add (8-bit)
+    pub fn op_add(&mut self, instr: &Instruction) -> CPUOpResult {
+        // First operand is always A
+        let left = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg, Register::A);
+                self.regs.read8(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let right = match instr.def.operands[1] {
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let result = alu::add_8b(left, right);
+        self.regs.write8(Register::A, result.result)?;
+        self.regs.write_flags(&[
+            (Flag::Z, result.result == 0),
+            (Flag::C, result.carry),
+            (Flag::H, result.halfcarry),
+            (Flag::N, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// SUB - Subtract (8-bit)
@@ -1284,5 +1315,53 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_add_reg() {
+        let mut c = cpu(&[0x80]); // ADD A,B
+        c.regs.write8(Register::A, 0x3A).unwrap();
+        c.regs.write8(Register::B, 0xC6).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let mut c = cpu(&[0x80]); // ADD A,B
+        c.regs.write8(Register::A, 0x3C).unwrap();
+        c.regs.write8(Register::B, 0xFF).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x3B);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_add_indreg() {
+        let mut c = cpu(&[0x86]); // ADD A,(HL)
+        c.regs.write8(Register::A, 0x3A).unwrap();
+        c.regs.write(Register::HL, 0x55AA).unwrap();
+        c.bus.write(0x55AA, 0xC6);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let mut c = cpu(&[0x86]); // ADD A,(HL)
+        c.regs.write8(Register::A, 0x3C).unwrap();
+        c.regs.write(Register::HL, 0x55AA).unwrap();
+        c.bus.write(0x55AA, 0xFF);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x3B);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 }
