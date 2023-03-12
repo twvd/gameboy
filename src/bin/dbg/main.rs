@@ -5,6 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 
 use gbrust::gameboy::bus::bus::Bus;
+use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
 use gbrust::gameboy::cpu::cpu::CPU;
 
@@ -16,22 +17,43 @@ struct Args {
     /// ROM filename to load.
     filename: String,
 
+    /// Boot ROM to optionally load
+    #[arg(short, long)]
+    bootrom: Option<String>,
+
     /// Wait for keystroke after each CPU step.
     #[arg(short, long)]
     pause: bool,
+
+    /// Use testing address bus
+    #[arg(short, long)]
+    testbus: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let f = fs::read(args.filename)?;
-    let mut bus = Testbus::new();
-    bus.write_slice(&f, 0);
+    let rom = fs::read(args.filename)?;
 
-    // Indicate start of VBlank for testing purposes
-    bus.write(0xFF44, 0x90);
+    let mut bus: Box<dyn Bus> = if args.testbus {
+        Box::new(Testbus::new())
+    } else {
+        if let Some(brfile) = args.bootrom {
+            let bootrom = fs::read(brfile)?;
+            Box::new(Gameboybus::new(&rom, Some(bootrom.as_slice())))
+        } else {
+            Box::new(Gameboybus::new(&rom, None))
+        }
+    };
 
-    let mut cpu = CPU::new(Box::from(bus));
+    if args.testbus {
+        bus.write_slice(&rom, 0);
+
+        // Indicate start of VBlank for testing purposes
+        bus.write(0xFF44, 0x90);
+    }
+
+    let mut cpu = CPU::new(bus);
 
     loop {
         println!("Cycle: {}", cpu.get_cycles());
