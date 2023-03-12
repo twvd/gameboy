@@ -20,8 +20,6 @@ pub enum Flag {
     C = 4,
 }
 
-const FLAG_MASK: u8 = 0xF0;
-
 /// Bit-width of a register (see Register::width())
 #[derive(Debug, Eq, PartialEq)]
 pub enum RegisterWidth {
@@ -252,11 +250,15 @@ impl RegisterFile {
 
     /// Clear and write the flags in F.
     pub fn write_flags(&mut self, flag_val: &[(Flag, bool)]) {
-        let mut f: u8 = self.f & !FLAG_MASK;
-        for &(b, _) in flag_val.iter().filter(|&&(_, on)| on) {
+        let mut f: u8 = self.f;
+        for &(b, on) in flag_val {
             // Just unwrap here, it will succeed anyway
             // because we know the enum values fit in u8.
-            f |= 1u8 << b.to_u8().unwrap();
+            let bit = 1u8 << b.to_u8().unwrap();
+            f &= !bit;
+            if on {
+                f |= bit;
+            }
         }
         self.f = f;
     }
@@ -435,16 +437,21 @@ mod tests {
     fn write_flags_low_nibble_untouched() {
         let mut r = RegisterFile::new();
         r.f = 0xFF;
-        r.write_flags(&[]);
+        r.write_flags(&[
+            (Flag::N, false),
+            (Flag::Z, false),
+            (Flag::H, false),
+            (Flag::C, false),
+        ]);
         assert_eq!(r.f, 0x0F);
     }
 
     #[test]
     fn write_flags_none() {
         let mut r = RegisterFile::new();
-        r.f = FLAG_MASK;
+        r.f = 0xFF;
         r.write_flags(&[]);
-        assert_eq!(r.f, 0x00);
+        assert_eq!(r.f, 0xFF);
     }
 
     #[test]
@@ -484,6 +491,14 @@ mod tests {
             r.f,
             1u8 << Flag::H.to_u8().unwrap() | 1u8 << Flag::N.to_u8().unwrap()
         );
+    }
+
+    #[test]
+    fn write_flags_unwritten_untouched() {
+        let mut r = RegisterFile::new();
+        r.write_flags(&[(Flag::Z, true)]);
+        r.write_flags(&[(Flag::N, true)]);
+        assert!(r.test_flag(Flag::Z));
     }
 
     #[test]
