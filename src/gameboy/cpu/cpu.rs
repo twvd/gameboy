@@ -286,7 +286,7 @@ impl CPU {
             RegisterWidth::SixteenBit => regval,
             RegisterWidth::EightBit => {
                 assert_eq!(regval & !0xFF, 0);
-                0xFF00 + regval
+                0xFF00 | regval
             }
         };
 
@@ -294,6 +294,8 @@ impl CPU {
         let val: u16 = match &instr.def.operands[1] {
             // LD _, imm8
             Operand::Immediate8 => instr.imm8(1)?.into(),
+            // LD _, (imm8)
+            Operand::ImmediateIndirect8 => self.bus.read(0xFF00_u16 | instr.imm8(1)? as u16).into(),
             // LD _, imm16
             Operand::Immediate16 => instr.imm16(1)?,
             // LD _, reg
@@ -336,10 +338,6 @@ impl CPU {
         }
 
         Ok(OpOk::ok(self, instr))
-    }
-
-    pub fn op_ldh(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
     }
 
     pub fn op_scf(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -782,6 +780,14 @@ mod tests {
         let mut c = cpu(&[0x1A]); // LD A,(DE)
         c.regs.write(Register::DE, 0x1122).unwrap();
         c.bus.write(0x1122, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x5A);
+    }
+
+    #[test]
+    fn op_ld_reg_indimm8() {
+        let mut c = cpu(&[0xF0, 0x22]); // LD A,(imm8)
+        c.bus.write(0xFF22, 0x5A);
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x5A);
     }
