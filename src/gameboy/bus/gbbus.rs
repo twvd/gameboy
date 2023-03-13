@@ -56,14 +56,8 @@ impl Bus for Gameboybus {
         let addr = addr as usize;
 
         match addr {
-            // Boot ROM (or cartridge after disable)
-            0x0000..=0x00FF => {
-                if self.boot_rom_enabled {
-                    self.boot_rom[addr]
-                } else {
-                    self.cart_rom[0][addr]
-                }
-            }
+            // Boot ROM
+            0x0000..=0x00FF if self.boot_rom_enabled => self.boot_rom[addr],
 
             // Cartridge bank 0
             0x0000..=0x3FFF => self.cart_rom[0][addr],
