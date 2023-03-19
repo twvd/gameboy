@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use super::super::display::display::Display;
 
 pub const LCD_W: usize = 160;
@@ -27,17 +29,40 @@ struct OAMEntry {
 
 impl OAMEntry {}
 
+/// LCD controller state
 pub struct LCDController {
+    /// Display output
     output: Box<dyn Display>,
+
+    /// OAM memory
     oam: [u8; OAM_SIZE],
+
+    /// VRAM memory
     vram: [u8; VRAM_SIZE],
 
+    /// LCDC - LCD Control register
     lcdc: u8,
+
+    /// SCY - Scroll Y register
     scy: u8,
+
+    /// SCX - Scroll X register
     scx: u8,
+
+    /// Time base for timing stuff
+    timebase: SystemTime,
 }
 
 impl LCDController {
+    /// LCD dot clock frequency in Hz
+    const DOTCLOCK_HZ: u128 = 4_194_000;
+
+    /// Dots per scanline (including HBlank)
+    const DOTS_PER_LINE: u128 = 456;
+
+    /// Amount of vertical scanlines (including VBlank)
+    const SCANLINES: u128 = 154;
+
     pub fn new(display: Box<dyn Display>) -> Self {
         Self {
             output: display,
@@ -47,7 +72,23 @@ impl LCDController {
             lcdc: 0,
             scy: 0,
             scx: 0,
+
+            timebase: SystemTime::now(),
         }
+    }
+
+    /// Calculate LY based on current timed LCD scan
+    fn get_ly(&self) -> u8 {
+        let elapsed = SystemTime::now()
+            .duration_since(self.timebase)
+            .expect("Time error");
+        Self::calc_scanline(elapsed.as_micros())
+    }
+
+    fn calc_scanline(elapsed: u128) -> u8 {
+        let dots_scanned = Self::DOTCLOCK_HZ * elapsed / 1_000_000u128;
+        let lines_scanned = dots_scanned / Self::DOTS_PER_LINE;
+        (lines_scanned % Self::SCANLINES) as u8
     }
 
     #[inline(always)]
@@ -119,7 +160,7 @@ impl LCDController {
             0xFF43 => self.scx,
 
             // LY - LCD update Y position
-            0xFF44 => 0x90,
+            0xFF44 => self.get_ly(),
             _ => {
                 println!("Read from unknown LCD address: {:04X}", addr);
                 0
@@ -172,8 +213,6 @@ impl LCDController {
         }
 
         self.output.render();
-
-        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
@@ -189,5 +228,13 @@ mod tests {
         for x in 0..result.len() {
             assert_eq!(LCDController::tile_decode(&tile, x, 0), result[x]);
         }
+    }
+
+    #[test]
+    fn calc_scanline() {
+        // One full frame = 16.74ms
+        assert_eq!(LCDController::calc_scanline(0u128), 0);
+        assert_eq!(LCDController::calc_scanline(1_674_0u128), 153);
+        assert_eq!(LCDController::calc_scanline(1_675_0u128), 0);
     }
 }

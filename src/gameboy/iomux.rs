@@ -8,16 +8,13 @@ impl Bus for IOMux {
         let addr = addr as usize;
 
         match addr {
-            // LY - LCD Y position register
-            0xFF44 => 0x90,
-
             // Remaining I/O space
             0xFF00..=0xFF70 => 0,
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, addr: u16, val: u8) {
+    fn write(&mut self, addr: u16, _val: u8) {
         let addr = addr as usize;
 
         match addr {
