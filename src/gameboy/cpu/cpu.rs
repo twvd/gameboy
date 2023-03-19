@@ -52,7 +52,10 @@ impl OpOk {
 
 /// Gameboy CPU
 pub struct CPU {
+    /// Address bus
     pub bus: Box<dyn Bus>,
+
+    /// Register file
     pub regs: RegisterFile,
 
     /// Total amount of cycles
@@ -60,6 +63,9 @@ pub struct CPU {
 }
 
 impl CPU {
+    /// IE register address on address bus
+    const BUS_IE: u16 = 0xFFFF;
+
     pub fn new(bus: Box<dyn Bus>) -> Self {
         Self {
             bus,
@@ -256,12 +262,16 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_ei(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// EI - Enable Interrupts
+    pub fn op_ei(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.bus.write(Self::BUS_IE, 1);
+        Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_di(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// DI - Disable Interrupts
+    pub fn op_di(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.bus.write(Self::BUS_IE, 0);
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_rst(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1441,5 +1451,19 @@ mod tests {
         let c = run_flags(&[0xC2, 0xBB, 0xAA], &[Flag::Z]);
         assert_ne!(c.regs.pc, 0xAABB);
         assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_ei() {
+        let c = run(&[0xFB]);
+        assert_eq!(c.bus.read(0xFFFF), 1);
+    }
+
+    #[test]
+    fn op_di() {
+        let mut c = cpu(&[0xF3]);
+        c.bus.write(0xFFFF, 1);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0xFFFF), 0);
     }
 }
