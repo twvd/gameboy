@@ -2054,7 +2054,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::ImmediateIndirect16, Operand::None],
         len: 3,
         cycles: [16, 12],
-        func: CPU::op_jp,
+        func: CPU::op_jp_c,
     },
     // INVALID
     InstructionDef {

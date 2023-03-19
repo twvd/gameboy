@@ -583,20 +583,42 @@ impl CPU {
         self.op_jr_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
-    pub fn op_jp(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JP _ - Jump Absolute (conditional/unconditional)
+    fn op_jp_cc(&mut self, instr: &Instruction, cc: bool) -> CPUOpResult {
+        if !cc {
+            return Ok(OpOk::no_branch(self, instr));
+        }
+
+        let new_pc = match instr.def.operands[0] {
+            Operand::ImmediateIndirect16 => instr.imm16(0)?,
+            _ => todo!(),
+        };
+        Ok(OpOk::branch(self, instr, new_pc))
     }
 
-    pub fn op_jp_nc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JP _ - Jump Absolute (unconditionally)
+    pub fn op_jp(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jp_cc(instr, true)
     }
 
-    pub fn op_jp_nz(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JP NC _ - Jump Absolute (if not carry)
+    pub fn op_jp_nc(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jp_cc(instr, !self.regs.test_flag(Flag::C))
     }
 
-    pub fn op_jp_z(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// JP C _ - Jump Absolute (if carry)
+    pub fn op_jp_c(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jp_cc(instr, self.regs.test_flag(Flag::C))
+    }
+
+    /// JP NZ _ - Jump Absolute (if not zero)
+    pub fn op_jp_nz(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jp_cc(instr, !self.regs.test_flag(Flag::Z))
+    }
+
+    /// JP Z _ - Jump Absolute (if zero)
+    pub fn op_jp_z(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.op_jp_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
     /// CALL cc - Call (conditional/unconditional)
@@ -1369,5 +1391,55 @@ mod tests {
     #[test]
     fn op_nop() {
         run(&[0x00]);
+    }
+
+    #[test]
+    fn op_jp_imm16() {
+        let c = run(&[0xC3, 0xBB, 0xAA]);
+        assert_eq!(c.regs.pc, 0xAABB);
+    }
+
+    #[test]
+    fn op_jp_c_imm16() {
+        let c = run(&[0xDA, 0xBB, 0xAA]);
+        assert_ne!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(&[0xDA, 0xBB, 0xAA], &[Flag::C]);
+        assert_eq!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 16);
+    }
+
+    #[test]
+    fn op_jp_nc_imm16() {
+        let c = run(&[0xD2, 0xBB, 0xAA]);
+        assert_eq!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 16);
+
+        let c = run_flags(&[0xD2, 0xBB, 0xAA], &[Flag::C]);
+        assert_ne!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 12);
+    }
+
+    #[test]
+    fn op_jp_z_imm16() {
+        let c = run(&[0xCA, 0xBB, 0xAA]);
+        assert_ne!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 12);
+
+        let c = run_flags(&[0xCA, 0xBB, 0xAA], &[Flag::Z]);
+        assert_eq!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 16);
+    }
+
+    #[test]
+    fn op_jp_nz_imm16() {
+        let c = run(&[0xC2, 0xBB, 0xAA]);
+        assert_eq!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 16);
+
+        let c = run_flags(&[0xC2, 0xBB, 0xAA], &[Flag::Z]);
+        assert_ne!(c.regs.pc, 0xAABB);
+        assert_eq!(c.cycles, 12);
     }
 }
