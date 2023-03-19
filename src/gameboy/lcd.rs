@@ -139,17 +139,19 @@ impl LCDController {
         self.vram[addr]
     }
 
-    fn draw_tile_at(&mut self, tile: &[u8], x: usize, y: usize) {
+    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize) {
         for tx in 0..TILE_W {
             for ty in 0..TILE_H {
                 let color = Self::tile_decode(&tile, tx, ty);
-                let disp_x = x + tx;
-                let disp_y = y + ty;
+                let disp_x = x + tx as isize;
+                let disp_y = y + ty as isize;
 
-                if disp_x >= LCD_W || disp_y >= LCD_H {
+                if disp_x < 0 || disp_y < 0 || disp_x >= LCD_W as isize || disp_y >= LCD_H as isize
+                {
                     continue;
                 }
-                self.output.set_pixel(disp_x, disp_y, color);
+                self.output
+                    .set_pixel(disp_x as usize, disp_y as usize, color);
             }
         }
     }
@@ -161,13 +163,17 @@ impl LCDController {
         for x in 0..32 {
             for y in 0..32 {
                 let tile = self.get_bg_tile(x, y).to_owned();
-                self.draw_tile_at(&tile, x * TILE_W, y * TILE_H);
+                self.draw_tile_at(
+                    &tile,
+                    (x * TILE_W) as isize - self.scx as isize,
+                    (y * TILE_H) as isize - self.scy as isize,
+                );
             }
         }
 
         self.output.render();
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
