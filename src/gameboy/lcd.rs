@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::time::SystemTime;
 
 use super::super::display::display::Display;
@@ -51,6 +52,9 @@ pub struct LCDController {
 
     /// Time base for timing stuff
     timebase: SystemTime,
+
+    /// Current scanline
+    scanline: Cell<u8>,
 }
 
 impl LCDController {
@@ -74,6 +78,7 @@ impl LCDController {
             scx: 0,
 
             timebase: SystemTime::now(),
+            scanline: Cell::new(0),
         }
     }
 
@@ -82,7 +87,16 @@ impl LCDController {
         let elapsed = SystemTime::now()
             .duration_since(self.timebase)
             .expect("Time error");
-        Self::calc_scanline(elapsed.as_micros())
+
+        // Make sure LY always increments by 1. Because games tend
+        // to check LY against absolute numbers, skipping over the
+        // number its being compared to (i.e. because of scheduling),
+        // we'd delay the game by a whole frame.
+        if Self::calc_scanline(elapsed.as_micros()) != self.scanline.get() {
+            self.scanline
+                .set((self.scanline.get() + 1) % Self::SCANLINES as u8);
+        }
+        self.scanline.get()
     }
 
     fn calc_scanline(elapsed: u128) -> u8 {
