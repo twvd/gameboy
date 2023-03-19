@@ -7,6 +7,7 @@ use clap::Parser;
 const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
 
+use gbrust::display::display::{Display, NullDisplay};
 use gbrust::display::terminal::TermDisplay;
 use gbrust::gameboy::bus::bus::Bus;
 use gbrust::gameboy::bus::gbbus::Gameboybus;
@@ -37,6 +38,10 @@ struct Args {
     /// Print CPU state after each instruction
     #[arg(short, long)]
     verbose: bool,
+
+    /// Enable display
+    #[arg(short, long)]
+    display: bool,
 }
 
 fn main() -> Result<()> {
@@ -44,8 +49,13 @@ fn main() -> Result<()> {
 
     let rom = fs::read(args.filename)?;
 
-    let display = TermDisplay::new(DISPLAY_W, DISPLAY_H);
-    let lcd = LCDController::new(Box::new(display));
+    let display: Box<dyn Display> = if args.display {
+        Box::new(TermDisplay::new(DISPLAY_W, DISPLAY_H))
+    } else {
+        Box::new(NullDisplay::new())
+    };
+
+    let lcd = LCDController::new(display);
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
@@ -68,9 +78,14 @@ fn main() -> Result<()> {
 
     loop {
         if args.verbose {
-            println!("Cycle: {}", cpu.get_cycles());
-            println!("{}", cpu.regs);
-            println!(" --> {}", cpu.peek_next_instr()?);
+            let state = format!(
+                "Cycle: {}\n{}\n --> {}\n",
+                cpu.get_cycles(),
+                cpu.regs,
+                cpu.peek_next_instr()?
+            );
+
+            println!("{}", state);
         }
 
         if args.pause {

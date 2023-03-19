@@ -4,3 +4,18 @@ pub trait Display {
     fn clear(&mut self);
     fn render(&self);
 }
+
+/// A display thst doesn't do anything.
+pub struct NullDisplay {}
+
+impl NullDisplay {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Display for NullDisplay {
+    fn set_pixel(&mut self, _x: usize, _y: usize, _color: u8) {}
+    fn clear(&mut self) {}
+    fn render(&self) {}
+}
