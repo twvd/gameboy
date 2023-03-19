@@ -4,10 +4,15 @@ use std::io::{stdin, Read};
 use anyhow::Result;
 use clap::Parser;
 
+const DISPLAY_W: usize = 160;
+const DISPLAY_H: usize = 144;
+
+use gbrust::display::terminal::TermDisplay;
 use gbrust::gameboy::bus::bus::Bus;
 use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
 use gbrust::gameboy::cpu::cpu::CPU;
+use gbrust::gameboy::lcd::LCDController;
 
 #[derive(Parser)]
 #[command(
@@ -28,6 +33,10 @@ struct Args {
     /// Use testing address bus
     #[arg(short, long)]
     testbus: bool,
+
+    /// Print CPU state after each instruction
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 fn main() -> Result<()> {
@@ -35,14 +44,16 @@ fn main() -> Result<()> {
 
     let rom = fs::read(args.filename)?;
 
+    let display = TermDisplay::new(DISPLAY_W, DISPLAY_H);
+    let lcd = LCDController::new(Box::new(display));
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
         if let Some(brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
-            Box::new(Gameboybus::new(&rom, Some(bootrom.as_slice())))
+            Box::new(Gameboybus::new(&rom, Some(bootrom.as_slice()), lcd))
         } else {
-            Box::new(Gameboybus::new(&rom, None))
+            Box::new(Gameboybus::new(&rom, None, lcd))
         }
     };
 
@@ -56,9 +67,11 @@ fn main() -> Result<()> {
     let mut cpu = CPU::new(bus);
 
     loop {
-        println!("Cycle: {}", cpu.get_cycles());
-        println!("{}", cpu.regs);
-        println!(" --> {}", cpu.peek_next_instr()?);
+        if args.verbose {
+            println!("Cycle: {}", cpu.get_cycles());
+            println!("{}", cpu.regs);
+            println!(" --> {}", cpu.peek_next_instr()?);
+        }
 
         if args.pause {
             let _ = stdin().read(&mut [0u8]).unwrap();

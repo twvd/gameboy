@@ -25,7 +25,7 @@ impl TermDisplay {
         TermDisplay {
             width,
             height,
-            buffer: vs
+            buffer: vs,
         }
     }
 
@@ -54,8 +54,7 @@ impl Display for TermDisplay {
         self.buffer[y][x] = color;
     }
 
-    fn clear(&mut self) {
-    }
+    fn clear(&mut self) {}
 
     fn render(&self) {
         let mut s = String::from("\x1B[2J\x1B[1;1H");
