@@ -67,7 +67,7 @@ impl Bus for Gameboybus {
 
             // Cartridge bank 1
             // TODO bank switching
-            0x4000..=0x7FFF => self.cart_rom[1][addr],
+            0x4000..=0x7FFF => self.cart_rom[1][addr - 0x4000],
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.read_vram(addr - 0x8000),

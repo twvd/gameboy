@@ -420,7 +420,12 @@ impl CPU {
         };
         let result = a ^ val;
         self.regs.write(Register::A, result.into())?;
-        self.regs.write_flags(&[(Flag::Z, result == 0)]);
+        self.regs.write_flags(&[
+            (Flag::Z, result == 0),
+            (Flag::C, false),
+            (Flag::H, false),
+            (Flag::N, false),
+        ]);
 
         Ok(OpOk::ok(self, instr))
     }
@@ -805,6 +810,9 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0xFF);
         assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
 
         let mut c = cpu(&[0xA8]); // XOR B
         c.regs.a = 0xAA;
@@ -812,6 +820,9 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x00);
         assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 
     #[test]
