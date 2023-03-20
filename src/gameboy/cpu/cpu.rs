@@ -320,6 +320,16 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
                 self.bus.read(self.regs.read(*reg)).into()
             }
+            // LD _, (reg+)
+            Operand::RegisterIndirectInc(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read_inc(*reg)?).into()
+            }
+            // LD _, (reg-)
+            Operand::RegisterIndirectDec(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read_dec(*reg)?).into()
+            }
             _ => todo!(),
         };
 
@@ -1469,5 +1479,25 @@ mod tests {
         c.interrupts = true;
         cpu_run(&mut c);
         assert!(!c.interrupts);
+    }
+
+    #[test]
+    fn op_ld_reg_indreg16_inc() {
+        let mut c = cpu(&[0x2A]); // LD A,(HL+)
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!((c.regs.h, c.regs.l), (0x11, 0x23));
+        assert_eq!(c.regs.a, 0x5A);
+    }
+
+    #[test]
+    fn op_ld_reg_indreg16_dec() {
+        let mut c = cpu(&[0x3A]); // LD A,(HL-)
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!((c.regs.h, c.regs.l), (0x11, 0x21));
+        assert_eq!(c.regs.a, 0x5A);
     }
 }
