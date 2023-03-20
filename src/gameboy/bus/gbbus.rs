@@ -17,7 +17,7 @@ pub struct Gameboybus {
     ext_ram: [u8; u16::MAX as usize + 1],
     wram: [u8; u16::MAX as usize + 1],
     hram: [u8; u16::MAX as usize + 1],
-    ie: bool,
+    ie: u8,
 
     io: IOMux,
     lcd: LCDController,
@@ -33,7 +33,7 @@ impl Gameboybus {
             ext_ram: [0; u16::MAX as usize + 1],
             wram: [0; u16::MAX as usize + 1],
             hram: [0; u16::MAX as usize + 1],
-            ie: false,
+            ie: 0,
 
             io: IOMux {},
             lcd,
@@ -110,13 +110,7 @@ impl Bus for Gameboybus {
             0xFF80..=0xFFFE => self.hram[addr],
 
             // Interrupt Enable (IE) register
-            0xFFFF => {
-                if self.ie {
-                    1
-                } else {
-                    0
-                }
-            }
+            0xFFFF => self.ie,
 
             _ => unreachable!(),
         }
@@ -171,7 +165,7 @@ impl Bus for Gameboybus {
             0xFF80..=0xFFFE => self.hram[addr] = val,
 
             // Interrupt Enable (IE) register
-            0xFFFF => self.ie = val > 0,
+            0xFFFF => self.ie = val,
 
             _ => unreachable!(),
         }

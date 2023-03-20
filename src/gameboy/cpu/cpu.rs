@@ -60,6 +60,9 @@ pub struct CPU {
 
     /// Total amount of cycles
     cycles: usize,
+
+    /// Interrupts enabled
+    interrupts: bool,
 }
 
 impl CPU {
@@ -71,6 +74,7 @@ impl CPU {
             bus,
             regs: RegisterFile::new(),
             cycles: 0,
+            interrupts: false,
         }
     }
 
@@ -264,13 +268,13 @@ impl CPU {
 
     /// EI - Enable Interrupts
     pub fn op_ei(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.bus.write(Self::BUS_IE, 1);
+        self.interrupts = true;
         Ok(OpOk::ok(self, instr))
     }
 
     /// DI - Disable Interrupts
     pub fn op_di(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.bus.write(Self::BUS_IE, 0);
+        self.interrupts = false;
         Ok(OpOk::ok(self, instr))
     }
 
@@ -1456,14 +1460,14 @@ mod tests {
     #[test]
     fn op_ei() {
         let c = run(&[0xFB]);
-        assert_eq!(c.bus.read(0xFFFF), 1);
+        assert!(c.interrupts);
     }
 
     #[test]
     fn op_di() {
         let mut c = cpu(&[0xF3]);
-        c.bus.write(0xFFFF, 1);
+        c.interrupts = true;
         cpu_run(&mut c);
-        assert_eq!(c.bus.read(0xFFFF), 0);
+        assert!(!c.interrupts);
     }
 }
