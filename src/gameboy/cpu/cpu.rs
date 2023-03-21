@@ -419,6 +419,8 @@ impl CPU {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
                 self.bus.read(self.regs.read16(r)?)
             }
+            // OR imm8
+            Operand::Immediate8 => instr.imm8(0)?,
             _ => todo!(),
         };
         let result = a | val;
@@ -439,6 +441,8 @@ impl CPU {
         let val = match instr.def.operands[0] {
             // XOR reg
             Operand::Register(r) => self.regs.read8(r)?,
+            // XOR imm8
+            Operand::Immediate8 => instr.imm8(0)?,
             // XOR (reg)
             Operand::RegisterIndirect(r) => {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
@@ -1566,6 +1570,23 @@ mod tests {
     }
 
     #[test]
+    fn op_xor_imm8() {
+        let c = run_reg(&[0xEE, 0xAA], Register::A, 0x55); // XOR 0xAA
+        assert_eq!(c.regs.a, 0xFF);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xEE, 0xAA], Register::A, 0xAA); // XOR 0xAA
+        assert_eq!(c.regs.a, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
     fn op_or_reg() {
         let mut c = cpu(&[0xB0]); // OR B
         c.regs.a = 0x55;
@@ -1588,6 +1609,30 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::N));
 
         let c = run(&[0xB0]); // OR B
+        assert_eq!(c.regs.a, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_or_imm8() {
+        let c = run_reg(&[0xF6, 0xAA], Register::A, 0x55); // OR 0xAA
+        assert_eq!(c.regs.a, 0xFF);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xF6, 0xAA], Register::A, 0xAA); // OR 0xAA
+        assert_eq!(c.regs.a, 0xAA);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run(&[0xF6, 0x00]); // OR 0x00
         assert_eq!(c.regs.a, 0x00);
         assert!(c.regs.test_flag(Flag::Z));
         assert!(!c.regs.test_flag(Flag::C));
