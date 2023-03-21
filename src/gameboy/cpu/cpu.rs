@@ -416,6 +416,11 @@ impl CPU {
         let val = match instr.def.operands[0] {
             // XOR reg
             Operand::Register(r) => self.regs.read8(r)?,
+            // XOR (reg)
+            Operand::RegisterIndirect(r) => {
+                assert_eq!(r.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(r)?)
+            }
             _ => todo!(),
         };
         let result = a ^ val;
@@ -1510,5 +1515,30 @@ mod tests {
         cpu_run(&mut c);
         assert_eq!((c.regs.h, c.regs.l), (0x11, 0x21));
         assert_eq!(c.regs.a, 0x5A);
+    }
+
+    #[test]
+    fn op_xor_indreg() {
+        let mut c = cpu(&[0xAE]); // XOR (HL)
+        c.regs.a = 0x55;
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0xAA);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0xFF);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let mut c = cpu(&[0xAE]); // XOR (HL)
+        c.regs.a = 0xAA;
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0xAA);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 }
