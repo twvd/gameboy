@@ -538,6 +538,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
                 self.regs.read8(reg)?
             }
+            Operand::Immediate8 => instr.imm8(1)?,
             _ => unreachable!(),
         };
 
@@ -845,6 +846,7 @@ mod tests {
         cpu_run(&mut cpu);
         cpu
     }
+
     #[test]
     fn op_ld_reg_imm16() {
         let cpu = run(&[0x31, 0x34, 0x12]); // LD SP,0x1234
@@ -1471,6 +1473,23 @@ mod tests {
         c.regs.write(Register::HL, 0x55AA).unwrap();
         c.bus.write(0x55AA, 0xFF);
         cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x3B);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_add_imm8() {
+        let c = run_reg(&[0xC6, 0xC6], Register::A, 0x3A); // ADD A, 0xC6
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg(&[0xC6, 0xFF], Register::A, 0x3C); // ADD A, 0xFF
         assert_eq!(c.regs.a, 0x3B);
         assert!(!c.regs.test_flag(Flag::Z));
         assert!(c.regs.test_flag(Flag::H));
