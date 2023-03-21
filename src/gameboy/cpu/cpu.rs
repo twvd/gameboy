@@ -311,6 +311,8 @@ impl CPU {
             Operand::Immediate8 => instr.imm8(1)?.into(),
             // LD _, (imm8)
             Operand::ImmediateIndirect8 => self.bus.read(0xFF00_u16 | instr.imm8(1)? as u16).into(),
+            // LD _, (imm16)
+            Operand::ImmediateIndirect16 => self.bus.read(instr.imm16(1)?).into(),
             // LD _, imm16
             Operand::Immediate16 => instr.imm16(1)?,
             // LD _, reg
@@ -1616,5 +1618,13 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_ld_reg_indimm16() {
+        let mut c = cpu(&[0xFA, 0x22, 0x11]); // LD A,(imm16)
+        c.bus.write(0x1122, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x5A);
     }
 }
