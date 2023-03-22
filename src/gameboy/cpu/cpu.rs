@@ -159,8 +159,36 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_swap(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SWAP - Swap nibbles
+    pub fn op_swap(&mut self, instr: &Instruction) -> CPUOpResult {
+        let val = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            _ => unreachable!(),
+        };
+
+        let val = (val >> 4) | ((val & 0x0F) << 4);
+
+        match instr.def.operands[0] {
+            Operand::Register(reg) => self.regs.write8(reg, val)?,
+            Operand::RegisterIndirect(reg) => self.bus.write(self.regs.read16(reg)?, val),
+            _ => unreachable!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::Z, val == 0),
+            (Flag::N, false),
+            (Flag::H, false),
+            (Flag::C, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_sla(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1846,5 +1874,35 @@ mod tests {
         assert_eq!(c.regs.a, 0xCA);
         assert!(c.regs.test_flag(Flag::N));
         assert!(c.regs.test_flag(Flag::H));
+    }
+
+    #[test]
+    fn op_swap_reg() {
+        let c = run_reg(&[0xCB, 0x30], Register::B, 0xAB); // SWAP B
+        assert_eq!(c.regs.b, 0xBA);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+
+        let c = run(&[0xCB, 0x30]); // SWAP B
+        assert_eq!(c.regs.b, 0x00);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+    }
+
+    #[test]
+    fn op_swap_indreg() {
+        let mut c = cpu(&[0xCB, 0x36]); // SWAP (HL)
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0xAB);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0xBA);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
     }
 }
