@@ -411,8 +411,13 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_cpl(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CPL - One's complement (of A)
+    pub fn op_cpl(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.regs
+            .write8(Register::A, !self.regs.read8(Register::A)?)?;
+        self.regs.write_flags(&[(Flag::H, true), (Flag::N, true)]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// OR - Bitwise OR
@@ -1833,5 +1838,13 @@ mod tests {
         let c = run_reg(&[0x2B], Register::HL, 0xFFFF); // DEC HL
         assert_eq!(c.regs.l, 0xFE);
         assert_eq!(c.regs.h, 0xFF);
+    }
+
+    #[test]
+    fn op_cpl() {
+        let c = run_reg(&[0x2F], Register::A, 0x35);
+        assert_eq!(c.regs.a, 0xCA);
+        assert!(c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::H));
     }
 }
