@@ -313,8 +313,15 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_rst(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RST - Call
+    pub fn op_rst(&mut self, instr: &Instruction) -> CPUOpResult {
+        let next_addr = self.regs.pc.wrapping_add(instr.len as u16);
+        self.stack_push(next_addr);
+
+        let Operand::Constant(new_addr) = instr.def.operands[0]
+            else { unreachable!() };
+
+        Ok(OpOk::branch(self, instr, new_addr.into()))
     }
 
     /// NOP - No Operation
@@ -1904,5 +1911,34 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
+    }
+
+    #[test]
+    fn op_rst() {
+        let c = run(&[0xC7]); // RST 00H
+        assert_eq!(c.regs.pc, 0x0000);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xD7]); // RST 10H
+        assert_eq!(c.regs.pc, 0x0010);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xE7]); // RST 20H
+        assert_eq!(c.regs.pc, 0x0020);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xF7]); // RST 30H
+        assert_eq!(c.regs.pc, 0x0030);
+        assert_ne!(c.regs.sp, 0x0000);
+
+        let c = run(&[0xCF]); // RST 08H
+        assert_eq!(c.regs.pc, 0x0008);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xDF]); // RST 18H
+        assert_eq!(c.regs.pc, 0x0018);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xEF]); // RST 28H
+        assert_eq!(c.regs.pc, 0x0028);
+        assert_ne!(c.regs.sp, 0x0000);
+        let c = run(&[0xFF]); // RST 38H
+        assert_eq!(c.regs.pc, 0x0038);
+        assert_ne!(c.regs.sp, 0x0000);
     }
 }
