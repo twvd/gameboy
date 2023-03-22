@@ -120,6 +120,11 @@ impl CPU {
         let val = match instr.def.operands[1] {
             // SET/RES _, reg
             Operand::Register(reg) => self.regs.read8(reg)?,
+            // SET/RES _, (reg)
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
             _ => todo!(),
         };
 
@@ -132,6 +137,8 @@ impl CPU {
         match instr.def.operands[1] {
             // SET/RES _, reg
             Operand::Register(reg) => self.regs.write8(reg, val)?,
+            // SET/RES _, (reg)
+            Operand::RegisterIndirect(reg) => self.bus.write(self.regs.read16(reg)?, val),
             _ => todo!(),
         }
 
@@ -972,6 +979,12 @@ mod tests {
     }
 
     #[test]
+    fn op_set_indreg() {
+        let c = run_reg(&[0xCB, 0xC6], Register::HL, 0x1122); // SET 0,(HL)
+        assert_eq!(c.bus.read(0x1122), 0x01);
+    }
+
+    #[test]
     fn op_res_reg() {
         let mut c = cpu(&[0xCB, 0x80]); // RES 0,B
         c.regs.b = 0xFF;
@@ -980,6 +993,15 @@ mod tests {
 
         let c = run(&[0xCB, 0x81]); // RES 0,C
         assert_eq!(c.regs.c, 0x00);
+    }
+
+    #[test]
+    fn op_res_indreg() {
+        let mut c = cpu(&[0xCB, 0x86]); // RES 0,(HL)
+        (c.regs.h, c.regs.l) = (0x11, 0x22);
+        c.bus.write(0x1122, 0xFF);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0xFE);
     }
 
     #[test]
