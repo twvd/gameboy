@@ -6,7 +6,7 @@ use super::super::display::display::Display;
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
 
-const OAM_SIZE: usize = 0x9F;
+const OAM_SIZE: usize = 0xA0;
 const VRAM_SIZE: usize = 0x2000;
 
 //const OAM_ENTRIES: usize = 40;

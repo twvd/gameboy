@@ -90,16 +90,11 @@ impl Bus for Gameboybus {
             0xFE00..=0xFE9F => todo!(),
 
             // Unusable segment
-            0xFEA0..=0xFEFF => panic!("Read from unusable segment"),
+            0xFEA0..=0xFEFF => 0,
 
             // Boot ROM disable
-            0xFF50 => {
-                if self.boot_rom_enabled {
-                    0
-                } else {
-                    1
-                }
-            }
+            0xFF50 if self.boot_rom_enabled => 0,
+            0xFF50 => 1,
 
             // LCD I/O
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
@@ -146,7 +141,7 @@ impl Bus for Gameboybus {
             0xFE00..=0xFE9F => self.lcd.write_oam(addr - 0xFE00, val),
 
             // Unusable segment
-            0xFEA0..=0xFEFF => panic!("Write to unusable segment"),
+            0xFEA0..=0xFEFF => (),
 
             // Boot ROM disable
             0xFF50 => if val > 0 && self.boot_rom_enabled {

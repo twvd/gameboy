@@ -10,7 +10,7 @@ impl Bus for IOMux {
         match addr {
             // Remaining I/O space
             0xFF00..=0xFF70 => 0,
-            _ => unreachable!(),
+            _ => 0,
         }
     }
 
@@ -19,7 +19,7 @@ impl Bus for IOMux {
 
         match addr {
             0xFF00..=0xFF70 => {}
-            _ => unreachable!(),
+            _ => (),
         }
     }
 }
