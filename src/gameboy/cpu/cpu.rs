@@ -603,8 +603,16 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_dec_16b(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// DEC - Decrement (16-bit)
+    pub fn op_dec_16b(&mut self, instr: &Instruction) -> CPUOpResult {
+        let Operand::Register(reg) = instr.def.operands[0]
+            else { unreachable!() };
+
+        assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+        self.regs
+            .write(reg, self.regs.read16(reg)?.wrapping_sub(1))?;
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// INC - Increment (8-bit)
@@ -1814,5 +1822,16 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_dec_16b() {
+        let c = run_reg(&[0x2B], Register::HL, 0x00); // DEC HL
+        assert_eq!(c.regs.l, 0xFF);
+        assert_eq!(c.regs.h, 0xFF);
+
+        let c = run_reg(&[0x2B], Register::HL, 0xFFFF); // DEC HL
+        assert_eq!(c.regs.l, 0xFE);
+        assert_eq!(c.regs.h, 0xFF);
     }
 }
