@@ -10,4 +10,5 @@ anyhow = "1.0.69"
 clap = { version = "4.1.8", features = ["derive"] }
 num-derive = "0.3.3"
 num-traits = "0.2.15"
+pancurses = { version = "0.17.0", features = ["wide"] }
 thiserror = "1.0.38"

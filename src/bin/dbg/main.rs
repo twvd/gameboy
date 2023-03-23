@@ -7,8 +7,8 @@ use clap::Parser;
 const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
 
+use gbrust::display::curses::CursesDisplay;
 use gbrust::display::display::{Display, NullDisplay};
-use gbrust::display::terminal::TermDisplay;
 use gbrust::gameboy::bus::bus::Bus;
 use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
@@ -50,7 +50,7 @@ fn main() -> Result<()> {
     let rom = fs::read(args.filename)?;
 
     let display: Box<dyn Display> = if args.display {
-        Box::new(TermDisplay::new(DISPLAY_W, DISPLAY_H))
+        Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H))
     } else {
         Box::new(NullDisplay::new())
     };
