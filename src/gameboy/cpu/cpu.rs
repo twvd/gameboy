@@ -769,6 +769,10 @@ impl CPU {
 
         let new_pc = match instr.def.operands[0] {
             Operand::ImmediateIndirect16 => instr.imm16(0)?,
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.regs.read(reg)
+            }
             _ => todo!(),
         };
         Ok(OpOk::branch(self, instr, new_pc))
@@ -1613,6 +1617,12 @@ mod tests {
     #[test]
     fn op_jp_imm16() {
         let c = run(&[0xC3, 0xBB, 0xAA]);
+        assert_eq!(c.regs.pc, 0xAABB);
+    }
+
+    #[test]
+    fn op_jp_indreg16() {
+        let c = run_reg(&[0xE9], Register::HL, 0xAABB); // JP (HL)
         assert_eq!(c.regs.pc, 0xAABB);
     }
 
