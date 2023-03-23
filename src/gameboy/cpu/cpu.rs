@@ -333,8 +333,11 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_halt(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// HALT - Halts execution until interrupt or reset
+    pub fn op_halt(&mut self, instr: &Instruction) -> CPUOpResult {
+        // TODO implement real HALT?
+        // Just NOP should do for now
+        Ok(OpOk::ok(self, instr))
     }
 
     /// LD - Load Register
@@ -675,7 +678,20 @@ impl CPU {
                     // Carry not used
                 ]);
             }
-            _ => todo!(),
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+
+                let addr = self.regs.read16(reg)?;
+                let res = alu::sub_8b(self.bus.read(addr), 1);
+                self.bus.write(addr, res.result);
+                self.regs.write_flags(&[
+                    (Flag::H, res.halfcarry),
+                    (Flag::N, true),
+                    (Flag::Z, (res.result == 0)),
+                    // Carry not used
+                ]);
+            }
+            _ => unreachable!(),
         }
 
         Ok(OpOk::ok(self, instr))
@@ -706,7 +722,20 @@ impl CPU {
                     // Carry not used
                 ]);
             }
-            _ => todo!(),
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+
+                let addr = self.regs.read16(reg)?;
+                let res = alu::add_8b(self.bus.read(addr), 1);
+                self.bus.write(addr, res.result);
+                self.regs.write_flags(&[
+                    (Flag::H, res.halfcarry),
+                    (Flag::N, false),
+                    (Flag::Z, (res.result == 0)),
+                    // Carry not used
+                ]);
+            }
+            _ => unreachable!(),
         }
 
         Ok(OpOk::ok(self, instr))
@@ -1355,15 +1384,37 @@ mod tests {
 
     #[test]
     fn op_dec_8b() {
-        let c = run_reg(&[0x3D], Register::A, 0x00);
+        let c = run_reg(&[0x3D], Register::A, 0x00); // DEC A
         assert_eq!(c.regs.a, 0xFF);
         assert!(!c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::Z));
 
-        let c = run_reg(&[0x3D], Register::A, 0x01);
+        let c = run_reg(&[0x3D], Register::A, 0x01); // DEC A
         assert_eq!(c.regs.a, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_dec_8b_ind() {
+        let mut c = cpu(&[0x35]); // DEC (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0xFF);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let mut c = cpu(&[0x35]); // DEC (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 1);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0);
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::N));
@@ -1607,6 +1658,11 @@ mod tests {
         assert!(c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_halt() {
+        run(&[0x76]);
     }
 
     #[test]

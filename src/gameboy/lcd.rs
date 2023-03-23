@@ -152,7 +152,6 @@ impl LCDController {
             // SCY - Background scrolling viewport Y
             0xFF42 => {
                 self.scy = val;
-                self.redraw()
             }
 
             // SCX - Background scrolling viewport X
@@ -160,6 +159,7 @@ impl LCDController {
 
             _ => println!("Write to unknown LCD address: {:04X}", addr),
         }
+        self.redraw();
     }
 
     pub fn read_io(&self, addr: u16) -> u8 {
