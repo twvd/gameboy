@@ -601,6 +601,44 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
+    /// ADD - Add (16-bit)
+    pub fn op_add_16b(&mut self, instr: &Instruction) -> CPUOpResult {
+        let left = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.regs.read16(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let right = match instr.def.operands[1] {
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.regs.read16(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let result = alu::add_16b(left, right);
+
+        let Operand::Register(destreg) = instr.def.operands[0]
+            else { unreachable!() };
+        self.regs.write(destreg, result.result)?;
+        self.regs.write_flags(&[
+            (Flag::Z, result.result == 0),
+            (Flag::C, result.carry),
+            (Flag::H, result.halfcarry),
+            (Flag::N, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
+    }
+
+    /// ADD SP,r8 - Add to SP
+    pub fn op_add_sp_r8(&mut self, _instr: &Instruction) -> CPUOpResult {
+        todo!();
+    }
+
     /// SUB - Subtract (8-bit)
     pub fn op_sub(&mut self, instr: &Instruction) -> CPUOpResult {
         let val: u8 = match instr.def.operands[0] {
@@ -1940,5 +1978,18 @@ mod tests {
         let c = run(&[0xFF]); // RST 38H
         assert_eq!(c.regs.pc, 0x0038);
         assert_ne!(c.regs.sp, 0x0000);
+    }
+
+    #[test]
+    fn op_add_16b() {
+        let mut c = cpu(&[0x09]); // ADD HL,BC
+        c.regs.write(Register::HL, 0x8A23).unwrap();
+        c.regs.write(Register::BC, 0x0605).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x9028);
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 }

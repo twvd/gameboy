@@ -91,7 +91,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         ],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_add,
+        func: CPU::op_add_16b,
     },
     // LD A,(BC) (1), - - - -
     InstructionDef {
@@ -228,7 +228,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         ],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_add,
+        func: CPU::op_add_16b,
     },
     // LD A,(DE) (1), - - - -
     InstructionDef {
@@ -365,7 +365,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         ],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_add,
+        func: CPU::op_add_16b,
     },
     // LD A,(HL+) (1), - - - -
     InstructionDef {
@@ -502,7 +502,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         ],
         len: 1,
         cycles: [8, 8],
-        func: CPU::op_add,
+        func: CPU::op_add_16b,
     },
     // LD A,(HL-) (1), - - - -
     InstructionDef {
@@ -2169,7 +2169,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::SP), Operand::Relative8],
         len: 2,
         cycles: [16, 16],
-        func: CPU::op_add,
+        func: CPU::op_add_sp_r8,
     },
     // JP (HL) (1), - - - -
     InstructionDef {

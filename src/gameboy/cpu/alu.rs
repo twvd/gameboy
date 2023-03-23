@@ -14,6 +14,16 @@ pub fn add_8b(a: u8, b: u8) -> ALUResult<u8> {
     }
 }
 
+/// 16-bit add
+pub fn add_16b(a: u16, b: u16) -> ALUResult<u16> {
+    let result: u32 = a as u32 + b as u32;
+    ALUResult {
+        result: result as u16,
+        carry: (result > u16::MAX.into()),
+        halfcarry: (((a & 0x0FFF) + (b & 0x0FFF)) & 0x1000) == 0x1000,
+    }
+}
+
 /// 8-bit subtract
 pub fn sub_8b(a: u8, b: u8) -> ALUResult<u8> {
     let result: i16 = a as i16 - b as i16;
@@ -143,5 +153,18 @@ mod tests {
         assert_eq!(r.result, 0xFE);
         assert!(r.carry);
         assert!(!r.halfcarry);
+    }
+
+    #[test]
+    fn add_16b() {
+        let r = super::add_16b(0x8A23, 0x0605);
+        assert_eq!(r.result, 0x9028);
+        assert!(!r.carry);
+        assert!(r.halfcarry);
+
+        let r = super::add_16b(0x8A23, 0x8A23);
+        assert_eq!(r.result, 0x1446);
+        assert!(r.carry);
+        assert!(r.halfcarry);
     }
 }
