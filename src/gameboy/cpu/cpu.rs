@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use std::borrow::Borrow;
 
 use super::super::bus::bus::{Bus, BusIterator};
 use super::alu;
@@ -79,7 +80,7 @@ impl CPU {
     }
 
     pub fn peek_next_instr(&self) -> Result<Instruction> {
-        let mut busiter = BusIterator::new_from(&self.bus, self.regs.pc);
+        let mut busiter = BusIterator::new_from(self.bus.borrow(), self.regs.pc);
         Instruction::decode(&mut busiter)
     }
 

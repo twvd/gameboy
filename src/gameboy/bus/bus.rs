@@ -22,13 +22,13 @@ pub trait Bus {
 }
 
 pub struct BusIterator<'a> {
-    bus: &'a Box<dyn Bus>,
+    bus: &'a dyn Bus,
     next: u16,
     finished: bool,
 }
 
 impl<'a> BusIterator<'a> {
-    pub fn new_from(bus: &'a Box<dyn Bus>, offset: u16) -> BusIterator {
+    pub fn new_from(bus: &'a dyn Bus, offset: u16) -> BusIterator {
         BusIterator {
             bus,
             next: offset,
@@ -36,7 +36,7 @@ impl<'a> BusIterator<'a> {
         }
     }
 
-    pub fn new(bus: &'a Box<dyn Bus>) -> BusIterator {
+    pub fn new(bus: &'a dyn Bus) -> BusIterator {
         Self::new_from(bus, 0)
     }
 }
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn busiterator_new() {
-        let b: Box<dyn Bus> = Box::new(testbus());
+        let b = testbus();
         let mut i = BusIterator::new(&b);
 
         for a in 0..=u16::MAX {
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn busiterator_new_from() {
-        let b: Box<dyn Bus> = Box::new(testbus());
+        let b = testbus();
         let mut i = BusIterator::new_from(&b, 5);
 
         for a in 5..=u16::MAX {
