@@ -63,8 +63,8 @@ pub struct CPU {
     /// Total amount of cycles
     cycles: usize,
 
-    /// Interrupts enabled
-    interrupts: bool,
+    /// Interrupt Master Enable
+    ime: bool,
 }
 
 impl CPU {
@@ -76,7 +76,7 @@ impl CPU {
             bus,
             regs: RegisterFile::new(),
             cycles: 0,
-            interrupts: false,
+            ime: false,
         }
     }
 
@@ -305,13 +305,13 @@ impl CPU {
 
     /// EI - Enable Interrupts
     pub fn op_ei(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.interrupts = true;
+        self.ime = true;
         Ok(OpOk::ok(self, instr))
     }
 
     /// DI - Disable Interrupts
     pub fn op_di(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.interrupts = false;
+        self.ime = false;
         Ok(OpOk::ok(self, instr))
     }
 
@@ -906,8 +906,10 @@ impl CPU {
         self.op_ret_cc(instr, self.regs.test_flag(Flag::Z))
     }
 
-    pub fn op_reti(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RETI - Return from interrupt
+    pub fn op_reti(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.ime = true;
+        self.op_ret_cc(instr, true)
     }
 
     pub fn op_sbc(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1453,6 +1455,15 @@ mod tests {
     }
 
     #[test]
+    fn op_reti() {
+        let mut c = cpu(&[0xD9]);
+        c.stack_push(0xABCD);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0xABCD);
+        assert!(c.ime);
+    }
+
+    #[test]
     fn op_ret_z() {
         let mut c = cpu(&[0xC8]);
         c.regs.write_flags(&[(Flag::Z, true)]);
@@ -1741,15 +1752,15 @@ mod tests {
     #[test]
     fn op_ei() {
         let c = run(&[0xFB]);
-        assert!(c.interrupts);
+        assert!(c.ime);
     }
 
     #[test]
     fn op_di() {
         let mut c = cpu(&[0xF3]);
-        c.interrupts = true;
+        c.ime = true;
         cpu_run(&mut c);
-        assert!(!c.interrupts);
+        assert!(!c.ime);
     }
 
     #[test]
