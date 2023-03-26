@@ -725,7 +725,8 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
                 self.regs.read8(reg)?
             }
-            _ => todo!(),
+            Operand::RegisterIndirect(reg) => self.bus.read(self.regs.read16(reg)?),
+            _ => unreachable!(),
         };
 
         let res = alu::sub_8b(self.regs.read8(Register::A)?, val);
@@ -1805,6 +1806,20 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::Z));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_sub_indreg() {
+        let mut c = cpu(&[0x96]); // SUB (HL)
+        c.regs.write8(Register::A, 0x3E).unwrap();
+        c.bus.write(0x1122, 0x3E);
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::N));
     }
 
