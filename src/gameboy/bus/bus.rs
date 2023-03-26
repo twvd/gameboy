@@ -1,4 +1,6 @@
-pub trait Bus {
+use crate::tickable::Tickable;
+
+pub trait Bus: Tickable {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, val: u8);
 

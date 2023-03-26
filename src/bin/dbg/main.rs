@@ -14,6 +14,7 @@ use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
 use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::lcd::LCDController;
+use gbrust::tickable::Tickable;
 
 #[derive(Parser)]
 #[command(
@@ -92,6 +93,6 @@ fn main() -> Result<()> {
             let _ = stdin().read(&mut [0u8]).unwrap();
         }
 
-        cpu.step()?;
+        cpu.tick()?;
     }
 }

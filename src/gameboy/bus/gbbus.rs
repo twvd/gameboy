@@ -1,5 +1,8 @@
 use super::super::lcd::LCDController;
 use super::bus::Bus;
+use crate::tickable::Tickable;
+
+use anyhow::Result;
 
 const CART_ROM_BANK_SIZE: usize = 16 * 1024;
 
@@ -164,6 +167,14 @@ impl Bus for Gameboybus {
 
             _ => unreachable!(),
         }
+    }
+}
+
+impl Tickable for Gameboybus {
+    fn tick(&mut self) -> Result<()> {
+        self.lcd.tick()?;
+
+        Ok(())
     }
 }
 

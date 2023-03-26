@@ -1,4 +1,7 @@
+use anyhow::Result;
+
 use super::bus::Bus;
+use crate::tickable::Tickable;
 
 pub struct Testbus {
     mem: [u8; u16::MAX as usize + 1],
@@ -25,6 +28,12 @@ impl Bus for Testbus {
 
     fn write(&mut self, addr: u16, val: u8) {
         self.mem[addr as usize] = val;
+    }
+}
+
+impl Tickable for Testbus {
+    fn tick(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 

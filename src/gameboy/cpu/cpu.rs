@@ -5,6 +5,7 @@ use super::super::bus::bus::{Bus, BusIterator};
 use super::alu;
 use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
+use crate::tickable::Tickable;
 
 /// Return type of CPU::op_* functions
 type CPUOpResult = Result<OpOk>;
@@ -919,6 +920,14 @@ impl CPU {
 
     pub fn op_invalid(&mut self, _instr: &Instruction) -> CPUOpResult {
         panic!("Invalid opcode");
+    }
+}
+
+impl Tickable for CPU {
+    fn tick(&mut self) -> Result<()> {
+        self.step()?;
+
+        Ok(())
     }
 }
 

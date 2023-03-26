@@ -1,6 +1,9 @@
 use std::time::SystemTime;
 
-use super::super::display::display::Display;
+use crate::display::display::Display;
+use crate::tickable::Tickable;
+
+use anyhow::Result;
 
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
@@ -213,6 +216,12 @@ impl LCDController {
         }
 
         self.output.render();
+    }
+}
+
+impl Tickable for LCDController {
+    fn tick(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 
