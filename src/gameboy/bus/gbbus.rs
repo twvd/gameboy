@@ -92,12 +92,16 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => 0,
 
-            // Boot ROM disable
+            // I/O - Audio control + wave pattern (ignore)
+            0xFF10..=0xFF3F => 0,
+
+            // I/O - Boot ROM disable
             0xFF50 if self.boot_rom_enabled => 0,
             0xFF50 => 1,
 
-            // LCD I/O
+            // I/O - LCD I/O
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
+
             // Other I/O registers
             0xFF00..=0xFF7F => {
                 println!("Read from unknown I/O address {:04X}", addr);
@@ -146,16 +150,19 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => (),
 
-            // Boot ROM disable
+            // I/O - Audio control + wave pattern (ignore)
+            0xFF10..=0xFF3F => (),
+
+            // I/O - Boot ROM disable
             0xFF50 => if val > 0 && self.boot_rom_enabled {
                 println!("Boot ROM disabled!");
                 self.boot_rom_enabled = false;
             },
 
-            // LCD I/O
-            0xFF40..=0xFF4B |
-                0xFF51..=0xFF55 |
-                0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
+            // I/O - LCD I/O
+            0xFF40..=0xFF4B
+                | 0xFF51..=0xFF55
+                | 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
             // Other I/O registers
             0xFF00..=0xFF7F => println!("Write to unknown I/O address {:04X}", addr),
 
