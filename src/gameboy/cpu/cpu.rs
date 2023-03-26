@@ -237,8 +237,15 @@ impl CPU {
                 let result = alu::rotleft_9b(self.regs.read8(reg)?, self.regs.test_flag(Flag::C));
                 self.regs.write8(reg, result.result)?;
                 result
-            }
-            _ => todo!(),
+            },
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::rotleft_9b(val, self.regs.test_flag(Flag::C));
+                self.bus.write(addr, result.result);
+                result
+            },
+            _ => unreachable!(),
         };
 
         self.regs.write_flags(&[
@@ -274,8 +281,15 @@ impl CPU {
                 let result = alu::rotleft_8b(self.regs.read8(reg)?);
                 self.regs.write8(reg, result.result)?;
                 result
-            }
-            _ => todo!(),
+            },
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::rotleft_8b(val);
+                self.bus.write(addr, result.result);
+                result
+            },
+            _ => unreachable!(),
         };
 
         self.regs.write_flags(&[
@@ -1370,6 +1384,19 @@ mod tests {
     }
 
     #[test]
+    fn op_rl_indreg() {
+        let mut c = cpu(&[0xCB, 0x16]); // RL (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x40);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0x80);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
     fn op_rla() {
         let c = run_reg(&[0x17], Register::A, 0x80);
         assert_eq!(c.regs.a, 0x00);
@@ -1422,6 +1449,19 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
         assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rlc_indreg() {
+        let mut c = cpu(&[0xCB, 0x06]); // RLC (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x80);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0x01);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
     }
 
     #[test]
