@@ -213,7 +213,12 @@ impl CPU {
         let val = match instr.def.operands[1] {
             // BIT _, reg
             Operand::Register(reg) => self.regs.read8(reg)?,
-            _ => todo!(),
+            // BIT _, (reg)
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            _ => unreachable!(),
         };
 
         self.regs.write_flags(&[
@@ -414,12 +419,19 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_scf(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SCF - Set carry flag
+    pub fn op_scf(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.regs.write_flags(&[(Flag::C, true)]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_ccf(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// CCF - Flip carry flag
+    pub fn op_ccf(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.regs
+            .write_flags(&[(Flag::C, !self.regs.test_flag(Flag::C))]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// CP - Compare
@@ -1147,6 +1159,22 @@ mod tests {
         );
 
         let c = run(&[0xCB, 0x61]); // BIT 4,C
+        assert!(
+            c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
+        );
+    }
+
+    #[test]
+    fn op_bit_indreg() {
+        let mut c = cpu(&[0xCB, 0x46]); // BIT 0,(HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x01);
+        cpu_run(&mut c);
+        assert!(
+            !c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
+        );
+
+        let c = run_reg(&[0xCB, 0x66], Register::HL, 0x1122); // BIT 4,(HL)
         assert!(
             c.regs.test_flag(Flag::Z) && c.regs.test_flag(Flag::H) && !c.regs.test_flag(Flag::N)
         );
@@ -2080,5 +2108,20 @@ mod tests {
         assert!(c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_scf() {
+        let c = run(&[0x37]);
+        assert!(c.regs.test_flag(Flag::C));
+    }
+
+    #[test]
+    fn op_ccf() {
+        let c = run(&[0x3F]);
+        assert!(c.regs.test_flag(Flag::C));
+
+        let c = run_flags(&[0x3F], &[Flag::C]);
+        assert!(!c.regs.test_flag(Flag::C));
     }
 }
