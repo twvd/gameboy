@@ -1,4 +1,3 @@
-use super::super::iomux::IOMux;
 use super::super::lcd::LCDController;
 use super::bus::Bus;
 
@@ -19,7 +18,6 @@ pub struct Gameboybus {
     hram: [u8; u16::MAX as usize + 1],
     ie: u8,
 
-    io: IOMux,
     lcd: LCDController,
 }
 
@@ -35,7 +33,6 @@ impl Gameboybus {
             hram: [0; u16::MAX as usize + 1],
             ie: 0,
 
-            io: IOMux {},
             lcd,
         };
 
@@ -99,7 +96,10 @@ impl Bus for Gameboybus {
             // LCD I/O
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
             // Other I/O registers
-            0xFF00..=0xFF7F => self.io.read(addr as u16),
+            0xFF00..=0xFF7F => {
+                println!("Read from unknown I/O address {:04X}", addr);
+                0
+            }
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr],
@@ -154,7 +154,7 @@ impl Bus for Gameboybus {
                 0xFF51..=0xFF55 |
                 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
             // Other I/O registers
-            0xFF00..=0xFF7F => self.io.write(addr as u16, val),
+            0xFF00..=0xFF7F => println!("Write to unknown I/O address {:04X}", addr),
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr] = val,
