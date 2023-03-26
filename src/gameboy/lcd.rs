@@ -54,6 +54,12 @@ pub struct LCDController {
 
     /// Time base for timing stuff
     timebase: SystemTime,
+
+    /// Current scanline
+    ly: u8,
+
+    /// Output display needs updsting
+    redraw_pending: bool,
 }
 
 impl LCDController {
@@ -66,6 +72,9 @@ impl LCDController {
     /// Amount of vertical scanlines (including VBlank)
     const SCANLINES: u128 = 154;
 
+    /// Start of VBLANK period
+    const VBLANK_START: u128 = 144;
+
     pub fn new(display: Box<dyn Display>) -> Self {
         Self {
             output: display,
@@ -77,11 +86,13 @@ impl LCDController {
             scx: 0,
 
             timebase: SystemTime::now(),
+            ly: 0,
+            redraw_pending: false,
         }
     }
 
     /// Calculate LY based on current timed LCD scan
-    fn get_ly(&self) -> u8 {
+    fn calc_ly(&self) -> u8 {
         let elapsed = SystemTime::now()
             .duration_since(self.timebase)
             .expect("Time error");
@@ -146,9 +157,8 @@ impl LCDController {
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
 
-            _ => println!("Write to unknown LCD address: {:04X}", addr),
+            _ => println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
         }
-        self.redraw();
     }
 
     pub fn read_io(&self, addr: u16) -> u8 {
@@ -163,7 +173,7 @@ impl LCDController {
             0xFF43 => self.scx,
 
             // LY - LCD update Y position
-            0xFF44 => self.get_ly(),
+            0xFF44 => self.ly,
             _ => {
                 println!("Read from unknown LCD address: {:04X}", addr);
                 0
@@ -216,11 +226,21 @@ impl LCDController {
         }
 
         self.output.render();
+        self.redraw_pending = false;
     }
 }
 
 impl Tickable for LCDController {
     fn tick(&mut self) -> Result<()> {
+        self.ly = self.calc_ly();
+
+        if self.ly >= Self::VBLANK_START as u8 {
+            self.redraw_pending = true;
+        } else if self.redraw_pending && self.ly >= 10 {
+            // Wait 10 lines to give the CPU some time
+            self.redraw();
+        }
+
         Ok(())
     }
 }

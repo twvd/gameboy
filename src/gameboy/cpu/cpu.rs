@@ -927,6 +927,8 @@ impl Tickable for CPU {
     fn tick(&mut self) -> Result<()> {
         self.step()?;
 
+        self.bus.tick()?;
+
         Ok(())
     }
 }

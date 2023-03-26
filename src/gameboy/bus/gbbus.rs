@@ -163,7 +163,10 @@ impl Bus for Gameboybus {
             0xFF80..=0xFFFE => self.hram[addr] = val,
 
             // Interrupt Enable (IE) register
-            0xFFFF => self.ie = val,
+            0xFFFF => {
+                println!("IE = {:02X}", val);
+                self.ie = val
+            },
 
             _ => unreachable!(),
         }
