@@ -338,8 +338,32 @@ impl CPU {
         todo!();
     }
 
-    pub fn op_rrc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RRC - Rotate Right (copy to carry)
+    pub fn op_rrc(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let result = alu::rotright_8b(self.regs.read8(reg)?);
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::rotright_8b(val);
+                self.bus.write(addr, result.result);
+                result
+            }
+            _ => unreachable!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_rrca(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1490,21 +1514,21 @@ mod tests {
 
     #[test]
     fn op_rlc_reg() {
-        let c = run_reg(&[0xCB, 0x00], Register::B, 0x80);
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x80); // RLC B
         assert_eq!(c.regs.b, 0x01);
         assert!(c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::Z));
 
-        let c = run_reg(&[0xCB, 0x00], Register::B, 0x40);
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x40); // RLC B
         assert_eq!(c.regs.b, 0x80);
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::Z));
 
-        let c = run_reg(&[0xCB, 0x00], Register::B, 0x00);
+        let c = run_reg(&[0xCB, 0x00], Register::B, 0x00); // RLC B
         assert_eq!(c.regs.b, 0x00);
         assert!(!c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
@@ -1519,6 +1543,43 @@ mod tests {
         c.bus.write(0x1122, 0x80);
         cpu_run(&mut c);
         assert_eq!(c.bus.read(0x1122), 0x01);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rrc_reg() {
+        let c = run_reg(&[0xCB, 0x08], Register::B, 0x01); // RRC B
+        assert_eq!(c.regs.b, 0x80);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x08], Register::B, 0x80); // RRC B
+        assert_eq!(c.regs.b, 0x40);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xCB, 0x08], Register::B, 0x00); // RRC B
+        assert_eq!(c.regs.b, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rrc_indreg() {
+        let mut c = cpu(&[0xCB, 0x0E]); // RRC (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x01);
+        cpu_run(&mut c);
+        assert_eq!(c.bus.read(0x1122), 0x80);
         assert!(c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));

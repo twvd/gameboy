@@ -72,6 +72,16 @@ pub fn rotright_9b(a: u8, carry: bool) -> ALUResult<u8> {
     }
 }
 
+/// Rotate right, copy to carry
+pub fn rotright_8b(a: u8) -> ALUResult<u8> {
+    let result = a.rotate_right(1);
+    ALUResult {
+        result: result as u8,
+        carry: a & 0x01 == 0x01,
+        halfcarry: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -164,6 +174,25 @@ mod tests {
         let r = super::rotright_9b(0x22, false);
         assert_eq!(r.result, 0x11);
         assert_eq!(r.carry, false);
+    }
+
+    #[test]
+    fn rotright_8b() {
+        let r = super::rotright_8b(0b10101010);
+        assert_eq!(r.result, 0b01010101);
+        assert_eq!(r.carry, false);
+
+        let r = super::rotright_8b(0x01);
+        assert_eq!(r.result, 0x80);
+        assert_eq!(r.carry, true);
+
+        let r = super::rotright_8b(0x22);
+        assert_eq!(r.result, 0x11);
+        assert_eq!(r.carry, false);
+
+        let r = super::rotleft_8b(0x85);
+        assert_eq!(r.result, 0x0B);
+        assert_eq!(r.carry, true);
     }
 
     #[test]
