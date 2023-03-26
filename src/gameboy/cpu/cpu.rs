@@ -726,6 +726,7 @@ impl CPU {
                 self.regs.read8(reg)?
             }
             Operand::RegisterIndirect(reg) => self.bus.read(self.regs.read16(reg)?),
+            Operand::Immediate8 => instr.imm8(0)?,
             _ => unreachable!(),
         };
 
@@ -1806,6 +1807,18 @@ mod tests {
         assert!(!c.regs.test_flag(Flag::Z));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_sub_imm8() {
+        let mut c = cpu(&[0xD6, 0x3E]); // SUB $3E
+        c.regs.write8(Register::A, 0x3E).unwrap();
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0);
+        assert!(c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::C));
         assert!(c.regs.test_flag(Flag::N));
     }
 
