@@ -92,6 +92,9 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => 0,
 
+            // I/O - Joypad
+            0xFF00 => 0xFF,
+
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => 0,
 
