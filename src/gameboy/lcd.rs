@@ -18,8 +18,10 @@ const TILE_W: usize = 8;
 const TILE_H: usize = 8;
 
 // LCDC flags
+const LCDC_ENABLE: u8 = 1 << 7;
 const LCDC_BGW_TILEDATA: u8 = 1 << 4;
 const LCDC_BGW_TILEMAP: u8 = 1 << 3;
+const LCDC_BGW_ENABLE: u8 = 1 << 0;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -31,6 +33,13 @@ struct OAMEntry {
 }
 
 impl OAMEntry {}
+
+enum LCDStat {
+    Search = 2,
+    Read = 3,
+    HBlank = 0,
+    VBlank = 1,
+}
 
 /// LCD controller state
 pub struct LCDController {
@@ -213,15 +222,21 @@ impl LCDController {
     pub fn redraw(&mut self) {
         self.output.clear();
 
-        // Background
-        for x in 0..32 {
-            for y in 0..32 {
-                let tile = self.get_bg_tile(x, y).to_owned();
-                self.draw_tile_at(
-                    &tile,
-                    (x * TILE_W) as isize - self.scx as isize,
-                    (y * TILE_H) as isize - self.scy as isize,
-                );
+        if self.lcdc & LCDC_ENABLE != LCDC_ENABLE {
+            return;
+        }
+
+        if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
+            // Background
+            for x in 0..32 {
+                for y in 0..32 {
+                    let tile = self.get_bg_tile(x, y).to_owned();
+                    self.draw_tile_at(
+                        &tile,
+                        (x * TILE_W) as isize - self.scx as isize,
+                        (y * TILE_H) as isize - self.scy as isize,
+                    );
+                }
             }
         }
 
