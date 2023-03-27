@@ -106,6 +106,10 @@ impl LCDController {
         (lines_scanned % Self::SCANLINES) as u8
     }
 
+    pub fn in_vblank(&self) -> bool {
+        self.ly >= Self::VBLANK_START as u8
+    }
+
     #[inline(always)]
     fn get_bg_tile_id(&self, tm_x: usize, tm_y: usize) -> u8 {
         // VRAM offset = 8000 - 9FFF
@@ -242,7 +246,7 @@ impl Tickable for LCDController {
         self.dots = (self.dots + ticks as u128) % (Self::DOTS_PER_LINE * Self::SCANLINES);
         self.ly = self.calc_ly();
 
-        if self.ly >= Self::VBLANK_START as u8 {
+        if self.in_vblank() {
             self.redraw_pending = true;
         } else if self.redraw_pending && self.ly >= 10 {
             // Wait 10 lines to give the CPU some time

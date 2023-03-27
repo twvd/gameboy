@@ -7,6 +7,13 @@ use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
 use crate::tickable::Tickable;
 
+// Interrupt flags
+pub const INT_VBLANK: u8 = 1 << 0;
+pub const INT_LCDSTAT: u8 = 1 << 1;
+pub const INT_TIMER: u8 = 1 << 2;
+pub const INT_SERIAL: u8 = 1 << 3;
+pub const INT_JOYPAD: u8 = 1 << 4;
+
 /// Return type of CPU::op_* functions
 type CPUOpResult = Result<OpOk>;
 
@@ -71,6 +78,9 @@ impl CPU {
     /// IE register address on address bus
     const BUS_IE: u16 = 0xFFFF;
 
+    /// IF register address on address bus
+    const BUS_IF: u16 = 0xFF0F;
+
     pub fn new(bus: Box<dyn Bus>) -> Self {
         Self {
             bus,
@@ -85,7 +95,33 @@ impl CPU {
         Instruction::decode(&mut busiter)
     }
 
+    fn service_interrupts(&mut self) {
+        if !self.ime {
+            return;
+        }
+
+        let inte = self.bus.read(Self::BUS_IE);
+        let intf = self.bus.read(Self::BUS_IF);
+        let service = intf & inte;
+
+        let mut calli = |addr, flag: u8| {
+            // 2 wait states
+            self.cycles += 2;
+
+            self.bus.write(Self::BUS_IF, intf & !flag);
+            self.stack_push(self.regs.pc);
+            self.ime = false;
+            self.regs.pc = addr;
+        };
+
+        if service & INT_VBLANK == INT_VBLANK {
+            return calli(0x40, INT_VBLANK);
+        }
+    }
+
     pub fn step(&mut self) -> Result<usize> {
+        self.service_interrupts();
+
         let instr = self.peek_next_instr()?;
         let result = (instr.def.func)(self, &instr)?;
         self.regs.pc = result.pc;
@@ -2313,5 +2349,17 @@ mod tests {
 
         let c = run_flags(&[0x3F], &[Flag::C]);
         assert!(!c.regs.test_flag(Flag::C));
+    }
+
+    #[test]
+    fn interrupt_vblank() {
+        let mut c = cpu(&[0x00]); // NOP
+        c.ime = true;
+        c.bus.write(0xFFFF, 1); // IE
+        c.bus.write(0xFF0F, 1); // IF
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0x41);
+        assert!(!c.ime);
+        assert_eq!(c.bus.read(0xFF0F), 0);
     }
 }

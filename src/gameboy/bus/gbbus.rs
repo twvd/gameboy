@@ -1,3 +1,4 @@
+use super::super::cpu::cpu;
 use super::super::lcd::LCDController;
 use super::bus::Bus;
 use crate::tickable::Tickable;
@@ -22,6 +23,12 @@ pub struct Gameboybus {
     ie: u8,
 
     lcd: LCDController,
+
+    /// IF register
+    intflags: u8,
+
+    /// In VBlank?
+    in_vblank: bool,
 }
 
 impl Gameboybus {
@@ -37,6 +44,9 @@ impl Gameboybus {
             ie: 0,
 
             lcd,
+
+            intflags: 0,
+            in_vblank: false,
         };
 
         if let Some(br) = bootrom {
@@ -51,6 +61,17 @@ impl Gameboybus {
         bus.cart_rom[1].copy_from_slice(&cart[(16 * 1024)..]);
 
         bus
+    }
+
+    fn update_intflags(&mut self) {
+        if self.lcd.in_vblank() {
+            if !self.in_vblank {
+                self.intflags = self.intflags | cpu::INT_VBLANK;
+                self.in_vblank = true;
+            }
+        } else {
+            self.in_vblank = false;
+        }
     }
 }
 
@@ -94,6 +115,9 @@ impl Bus for Gameboybus {
 
             // I/O - Joypad
             0xFF00 => 0xFF,
+
+            // IF - interrupt flags
+            0xFF0F => self.intflags,
 
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => 0,
@@ -153,6 +177,9 @@ impl Bus for Gameboybus {
             // Unusable segment
             0xFEA0..=0xFEFF => (),
 
+            // IF - Interrupt Flags
+            0xFF0F => self.intflags = val,
+
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => (),
 
@@ -186,6 +213,7 @@ impl Bus for Gameboybus {
 impl Tickable for Gameboybus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         self.lcd.tick(ticks)?;
+        self.update_intflags();
 
         Ok(ticks)
     }
