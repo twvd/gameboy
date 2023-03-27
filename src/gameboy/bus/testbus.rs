@@ -32,8 +32,8 @@ impl Bus for Testbus {
 }
 
 impl Tickable for Testbus {
-    fn tick(&mut self) -> Result<()> {
-        Ok(())
+    fn tick(&mut self, ticks: usize) -> Result<usize> {
+        Ok(ticks)
     }
 }
 

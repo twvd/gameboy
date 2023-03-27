@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use crate::display::display::Display;
 use crate::tickable::Tickable;
 
@@ -61,20 +59,17 @@ pub struct LCDController {
     /// SCX - Scroll X register
     scx: u8,
 
-    /// Time base for timing stuff
-    timebase: SystemTime,
-
     /// Current scanline
     ly: u8,
 
     /// Output display needs updsting
     redraw_pending: bool,
+
+    /// Dot refresh position
+    dots: u128,
 }
 
 impl LCDController {
-    /// LCD dot clock frequency in Hz
-    const DOTCLOCK_HZ: u128 = 4_194_000;
-
     /// Dots per scanline (including HBlank)
     const DOTS_PER_LINE: u128 = 456;
 
@@ -94,23 +89,20 @@ impl LCDController {
             scy: 0,
             scx: 0,
 
-            timebase: SystemTime::now(),
             ly: 0,
             redraw_pending: false,
+
+            dots: 0,
         }
     }
 
     /// Calculate LY based on current timed LCD scan
     fn calc_ly(&self) -> u8 {
-        let elapsed = SystemTime::now()
-            .duration_since(self.timebase)
-            .expect("Time error");
-        Self::calc_scanline(elapsed.as_micros())
+        Self::calc_scanline(self.dots)
     }
 
-    fn calc_scanline(elapsed: u128) -> u8 {
-        let dots_scanned = Self::DOTCLOCK_HZ * elapsed / 1_000_000u128;
-        let lines_scanned = dots_scanned / Self::DOTS_PER_LINE;
+    fn calc_scanline(dots: u128) -> u8 {
+        let lines_scanned = dots / Self::DOTS_PER_LINE;
         (lines_scanned % Self::SCANLINES) as u8
     }
 
@@ -246,7 +238,8 @@ impl LCDController {
 }
 
 impl Tickable for LCDController {
-    fn tick(&mut self) -> Result<()> {
+    fn tick(&mut self, ticks: usize) -> Result<usize> {
+        self.dots = (self.dots + ticks as u128) % (Self::DOTS_PER_LINE * Self::SCANLINES);
         self.ly = self.calc_ly();
 
         if self.ly >= Self::VBLANK_START as u8 {
@@ -256,7 +249,7 @@ impl Tickable for LCDController {
             self.redraw();
         }
 
-        Ok(())
+        Ok(ticks)
     }
 }
 
@@ -272,13 +265,5 @@ mod tests {
         for x in 0..result.len() {
             assert_eq!(LCDController::tile_decode(&tile, x, 0), result[x]);
         }
-    }
-
-    #[test]
-    fn calc_scanline() {
-        // One full frame = 16.74ms
-        assert_eq!(LCDController::calc_scanline(0u128), 0);
-        assert_eq!(LCDController::calc_scanline(1_674_0u128), 153);
-        assert_eq!(LCDController::calc_scanline(1_675_0u128), 0);
     }
 }

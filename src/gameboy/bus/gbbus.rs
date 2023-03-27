@@ -184,10 +184,10 @@ impl Bus for Gameboybus {
 }
 
 impl Tickable for Gameboybus {
-    fn tick(&mut self) -> Result<()> {
-        self.lcd.tick()?;
+    fn tick(&mut self, ticks: usize) -> Result<usize> {
+        self.lcd.tick(ticks)?;
 
-        Ok(())
+        Ok(ticks)
     }
 }
 

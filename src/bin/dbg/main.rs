@@ -93,6 +93,6 @@ fn main() -> Result<()> {
             let _ = stdin().read(&mut [0u8]).unwrap();
         }
 
-        cpu.tick()?;
+        cpu.tick(1)?;
     }
 }

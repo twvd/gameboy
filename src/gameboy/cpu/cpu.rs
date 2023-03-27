@@ -85,12 +85,12 @@ impl CPU {
         Instruction::decode(&mut busiter)
     }
 
-    pub fn step(&mut self) -> Result<()> {
+    pub fn step(&mut self) -> Result<usize> {
         let instr = self.peek_next_instr()?;
         let result = (instr.def.func)(self, &instr)?;
         self.regs.pc = result.pc;
         self.cycles += result.cycles;
-        Ok(())
+        Ok(result.cycles)
     }
 
     pub fn get_cycles(&self) -> usize {
@@ -1002,12 +1002,12 @@ impl CPU {
 }
 
 impl Tickable for CPU {
-    fn tick(&mut self) -> Result<()> {
-        self.step()?;
+    fn tick(&mut self, ticks: usize) -> Result<usize> {
+        let cycles = self.step()?;
 
-        self.bus.tick()?;
+        self.bus.tick(ticks * cycles)?;
 
-        Ok(())
+        Ok(ticks * cycles)
     }
 }
 
