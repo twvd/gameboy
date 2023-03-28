@@ -1,9 +1,11 @@
 use super::display::Display;
 
+use itertools::Itertools;
 use pancurses;
+use pancurses::COLOR_PAIR;
 
 const PX_BOT: &'static str = "▄";
-const PX_TOP: &'static str = "▀";
+//const PX_TOP: &'static str = "▀";
 const PX_BOTH: &'static str = "█";
 const PX_NONE: &'static str = " ";
 
@@ -14,7 +16,15 @@ pub struct CursesDisplay {
     window: pancurses::Window,
 }
 
+/// Flag to mark a pixel for redrawing
 const DISP_DIRTY: u8 = 1 << 7;
+
+const COLORS: [i16; 4] = [
+    pancurses::COLOR_WHITE,
+    pancurses::COLOR_CYAN,
+    pancurses::COLOR_BLUE,
+    pancurses::COLOR_BLACK,
+];
 
 impl CursesDisplay {
     pub fn new(width: usize, height: usize) -> Self {
@@ -30,6 +40,15 @@ impl CursesDisplay {
         let mut win = pancurses::initscr();
         win.resize(height as i32 / 2, width as i32);
 
+        pancurses::start_color();
+
+        for v in [0, 0, 1, 1, 2, 2, 3, 3].into_iter().permutations(2) {
+            let (a, b) = (v[0], v[1]);
+            let pair: i16 = (a << 4) | b;
+            assert!((pair as i32) < pancurses::COLOR_PAIRS());
+            pancurses::init_pair(pair, COLORS[a as usize], COLORS[b as usize]);
+        }
+
         Self {
             width,
             height,
@@ -38,44 +57,32 @@ impl CursesDisplay {
         }
     }
 
-    #[inline(always)]
-    fn ch(&self, x: usize, y: usize) -> &'static str {
-        let y1: u8 = self.buffer[y][x] & !DISP_DIRTY;
-        let y2: u8 = self.buffer[y + 1][x] & !DISP_DIRTY;
-
-        if y1 > 0 && y2 > 0 {
-            PX_BOTH
-        } else if y1 > 0 {
-            PX_TOP
-        } else if y2 > 0 {
-            PX_BOT
-        } else {
-            PX_NONE
-        }
-    }
-
     fn render_partial(&mut self) {
         for y in (0..self.height).step_by(2) {
             for x in 0..self.width {
                 if (self.buffer[y][x] | self.buffer[y + 1][x]) & DISP_DIRTY == DISP_DIRTY {
-                    self.window.mvaddstr(y as i32 / 2, x as i32, self.ch(x, y));
+                    let y1: u32 = self.buffer[y][x] as u32 & 3;
+                    let y2: u32 = self.buffer[y + 1][x] as u32 & 3;
+                    let colors: u32 = (y2 << 4) | y1;
+                    let ch = if y1 == 3 && y2 == 3 {
+                        // Both black
+                        PX_NONE
+                    } else if y1 == y2 {
+                        // Same color
+                        PX_BOTH
+                    } else {
+                        // Different colors
+                        PX_BOT
+                    };
+
+                    self.window.attron(COLOR_PAIR(colors));
+                    self.window.mvaddstr(y as i32 / 2, x as i32, ch);
                     self.window.delch();
+                    self.window.attroff(COLOR_PAIR(colors));
+
                     self.buffer[y][x] &= !DISP_DIRTY;
                     self.buffer[y + 1][x] &= !DISP_DIRTY;
                 }
-            }
-        }
-        self.window.refresh();
-    }
-
-    #[allow(dead_code)]
-    fn render_full(&self) {
-        self.window.clear();
-
-        for y in (0..self.height).step_by(2) {
-            self.window.mv((y / 2) as i32, 0);
-            for x in 0..self.width {
-                self.window.addstr(self.ch(x, y));
             }
         }
         self.window.refresh();

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.69"
 clap = { version = "4.1.8", features = ["derive"] }
+itertools = "0.10.5"
 num-derive = "0.3.3"
 num-traits = "0.2.15"
 pancurses = { version = "0.17.0", features = ["wide"] }
