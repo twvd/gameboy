@@ -131,7 +131,7 @@ impl Bus for Gameboybus {
 
             // Other I/O registers
             0xFF00..=0xFF7F => {
-                println!("Read from unknown I/O address {:04X}", addr);
+                //println!("Read from unknown I/O address {:04X}", addr);
                 0
             }
 
@@ -152,7 +152,7 @@ impl Bus for Gameboybus {
             // Cartridge bank 0
             0x0000..=0x3FFF |
             // Cartridge bank 1
-            0x4000..=0x7FFF => println!("Write to read-only address {:04X}", addr),
+            0x4000..=0x7FFF => (), //println!("Write to read-only address {:04X}", addr),
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.write_vram(addr - 0x8000, val),
@@ -185,7 +185,6 @@ impl Bus for Gameboybus {
 
             // I/O - Boot ROM disable
             0xFF50 => if val > 0 && self.boot_rom_enabled {
-                println!("Boot ROM disabled!");
                 self.boot_rom_enabled = false;
             },
 
@@ -194,16 +193,13 @@ impl Bus for Gameboybus {
                 | 0xFF51..=0xFF55
                 | 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
             // Other I/O registers
-            0xFF00..=0xFF7F => println!("Write to unknown I/O address {:04X}", addr),
+            0xFF00..=0xFF7F => (), //println!("Write to unknown I/O address {:04X}", addr),
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr] = val,
 
             // Interrupt Enable (IE) register
-            0xFFFF => {
-                println!("IE = {:02X}", val);
-                self.ie = val
-            },
+            0xFFFF => self.ie = val,
 
             _ => unreachable!(),
         }

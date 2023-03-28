@@ -162,7 +162,7 @@ impl LCDController {
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
 
-            _ => println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
+            _ => (), //println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
         }
     }
 
@@ -180,7 +180,7 @@ impl LCDController {
             // LY - LCD update Y position
             0xFF44 => self.ly,
             _ => {
-                println!("Read from unknown LCD address: {:04X}", addr);
+                //println!("Read from unknown LCD address: {:04X}", addr);
                 0
             }
         }

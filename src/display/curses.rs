@@ -14,6 +14,8 @@ pub struct CursesDisplay {
     window: pancurses::Window,
 }
 
+const DISP_DIRTY: u8 = 1 << 7;
+
 impl CursesDisplay {
     pub fn new(width: usize, height: usize) -> Self {
         let mut vs: Vec<Vec<u8>> = Vec::with_capacity(height);
@@ -38,8 +40,8 @@ impl CursesDisplay {
 
     #[inline(always)]
     fn ch(&self, x: usize, y: usize) -> &'static str {
-        let y1: u8 = self.buffer[y][x];
-        let y2: u8 = self.buffer[y + 1][x];
+        let y1: u8 = self.buffer[y][x] & !DISP_DIRTY;
+        let y2: u8 = self.buffer[y + 1][x] & !DISP_DIRTY;
 
         if y1 > 0 && y2 > 0 {
             PX_BOTH
@@ -51,19 +53,23 @@ impl CursesDisplay {
             PX_NONE
         }
     }
-}
 
-impl Display for CursesDisplay {
-    fn set_pixel(&mut self, x: usize, y: usize, color: u8) {
-        assert!(x < self.width);
-        assert!(y < self.height);
-
-        self.buffer[y][x] = color;
+    fn render_partial(&mut self) {
+        for y in (0..self.height).step_by(2) {
+            for x in 0..self.width {
+                if (self.buffer[y][x] | self.buffer[y + 1][x]) & DISP_DIRTY == DISP_DIRTY {
+                    self.window.mvaddstr(y as i32 / 2, x as i32, self.ch(x, y));
+                    self.window.delch();
+                    self.buffer[y][x] &= !DISP_DIRTY;
+                    self.buffer[y + 1][x] &= !DISP_DIRTY;
+                }
+            }
+        }
+        self.window.refresh();
     }
 
-    fn clear(&mut self) {}
-
-    fn render(&self) {
+    #[allow(dead_code)]
+    fn render_full(&self) {
         self.window.clear();
 
         for y in (0..self.height).step_by(2) {
@@ -73,5 +79,20 @@ impl Display for CursesDisplay {
             }
         }
         self.window.refresh();
+    }
+}
+
+impl Display for CursesDisplay {
+    fn set_pixel(&mut self, x: usize, y: usize, color: u8) {
+        assert!(x < self.width);
+        assert!(y < self.height);
+
+        self.buffer[y][x] = DISP_DIRTY | color;
+    }
+
+    fn clear(&mut self) {}
+
+    fn render(&mut self) {
+        self.render_partial();
     }
 }

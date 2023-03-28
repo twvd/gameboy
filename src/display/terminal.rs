@@ -56,7 +56,7 @@ impl Display for TermDisplay {
 
     fn clear(&mut self) {}
 
-    fn render(&self) {
+    fn render(&mut self) {
         let mut s = String::from("\x1B[2J\x1B[1;1H");
 
         for y in (0..self.height).step_by(2) {
