@@ -72,6 +72,9 @@ pub struct CPU {
 
     /// Interrupt Master Enable
     ime: bool,
+
+    /// HALT instruction pauses CPU
+    halted: bool,
 }
 
 impl CPU {
@@ -87,6 +90,7 @@ impl CPU {
             regs: RegisterFile::new(),
             cycles: 0,
             ime: false,
+            halted: false,
         }
     }
 
@@ -107,6 +111,7 @@ impl CPU {
         let mut calli = |addr, flag: u8| {
             // 2 wait states
             self.cycles += 2;
+            self.halted = false;
 
             self.bus.write(Self::BUS_IF, intf & !flag);
             self.stack_push(self.regs.pc);
@@ -121,6 +126,10 @@ impl CPU {
 
     pub fn step(&mut self) -> Result<usize> {
         self.service_interrupts();
+
+        if self.halted {
+            return Ok(1);
+        }
 
         let instr = self.peek_next_instr()?;
         let result = (instr.def.func)(self, &instr)?;
@@ -488,8 +497,8 @@ impl CPU {
 
     /// HALT - Halts execution until interrupt or reset
     pub fn op_halt(&mut self, instr: &Instruction) -> CPUOpResult {
-        // TODO implement real HALT?
-        // Just NOP should do for now
+        self.halted = true;
+
         Ok(OpOk::ok(self, instr))
     }
 
@@ -1987,7 +1996,11 @@ mod tests {
 
     #[test]
     fn op_halt() {
-        run(&[0x76]);
+        let mut c = run(&[0x76]);
+        assert!(c.halted);
+        let pc = c.regs.pc;
+        c.step().unwrap();
+        assert_eq!(pc, c.regs.pc);
     }
 
     #[test]
