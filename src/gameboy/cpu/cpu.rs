@@ -229,12 +229,60 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_sla(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SLA - Shift left
+    pub fn op_sla(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let result = alu::shleft_8b(self.regs.read8(reg)?);
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::shleft_8b(val);
+                self.bus.write(addr, result.result);
+                result
+            }
+            _ => unreachable!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_sra(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SRA - Shift right
+    pub fn op_sra(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let result = alu::shright_8b(self.regs.read8(reg)?);
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::shright_8b(val);
+                self.bus.write(addr, result.result);
+                result
+            }
+            _ => unreachable!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// BIT b,n - Test for bit 'b' in 'n'
@@ -2349,6 +2397,40 @@ mod tests {
 
         let c = run_flags(&[0x3F], &[Flag::C]);
         assert!(!c.regs.test_flag(Flag::C));
+    }
+
+    #[test]
+    fn op_sla_reg() {
+        let c = run_reg(&[0xCB, 0x20], Register::B, 0x84); // SLA B
+        assert!(c.regs.test_flag(Flag::C));
+        assert_eq!(c.regs.b, 0x08);
+    }
+
+    #[test]
+    fn op_sla_indreg() {
+        let mut c = cpu(&[0xCB, 0x26]); // SLA (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x82);
+        cpu_run(&mut c);
+        assert!(c.regs.test_flag(Flag::C));
+        assert_eq!(c.bus.read(0x1122), 0x04);
+    }
+
+    #[test]
+    fn op_sra_reg() {
+        let c = run_reg(&[0xCB, 0x28], Register::B, 0x81); // SRA B
+        assert!(c.regs.test_flag(Flag::C));
+        assert_eq!(c.regs.b, 0x40);
+    }
+
+    #[test]
+    fn op_sra_indreg() {
+        let mut c = cpu(&[0xCB, 0x2E]); // SRA (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x82);
+        cpu_run(&mut c);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert_eq!(c.bus.read(0x1122), 0x41);
     }
 
     #[test]

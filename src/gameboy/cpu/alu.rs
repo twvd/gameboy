@@ -82,6 +82,26 @@ pub fn rotright_8b(a: u8) -> ALUResult<u8> {
     }
 }
 
+/// Shift right, with carry
+pub fn shright_8b(a: u8) -> ALUResult<u8> {
+    let result = a >> 1;
+    ALUResult {
+        result: result as u8,
+        carry: a & 0x01 == 0x01,
+        halfcarry: false,
+    }
+}
+
+/// Shift left, with carry
+pub fn shleft_8b(a: u8) -> ALUResult<u8> {
+    let result = a << 1;
+    ALUResult {
+        result: result as u8,
+        carry: a & 0x80 == 0x80,
+        halfcarry: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -224,5 +244,27 @@ mod tests {
         assert_eq!(r.result, 0x1446);
         assert!(r.carry);
         assert!(r.halfcarry);
+    }
+
+    #[test]
+    fn shleft_8b() {
+        let r = super::shleft_8b(0x84);
+        assert!(r.carry);
+        assert_eq!(r.result, 0x08);
+
+        let r = super::shleft_8b(0x01);
+        assert!(!r.carry);
+        assert_eq!(r.result, 0x02);
+    }
+
+    #[test]
+    fn shright_8b() {
+        let r = super::shright_8b(0x84);
+        assert!(!r.carry);
+        assert_eq!(r.result, 0x42);
+
+        let r = super::shright_8b(0x01);
+        assert!(r.carry);
+        assert_eq!(r.result, 0x00);
     }
 }
