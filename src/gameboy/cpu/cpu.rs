@@ -386,7 +386,6 @@ impl CPU {
             (Flag::C, result.carry),
             (Flag::H, false),
             (Flag::N, false),
-            // This seems weird?
             (Flag::Z, false),
         ]);
 
@@ -453,8 +452,19 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_rra(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RRA - Rotate Right, Register A (bit 9 = carry)
+    pub fn op_rra(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = alu::rotright_9b(self.regs.read8(Register::A)?, self.regs.test_flag(Flag::C));
+        self.regs.write8(Register::A, result.result)?;
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// RRC - Rotate Right (copy to carry)
@@ -1627,6 +1637,37 @@ mod tests {
 
         let c = run_reg_flags(&[0x17], Register::A, 0x95, &[Flag::C]);
         assert_eq!(c.regs.a, 0x2B);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rra() {
+        let c = run_reg(&[0x1F], Register::A, 0x01);
+        assert_eq!(c.regs.a, 0x00);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0x1F], Register::A, 0x40);
+        assert_eq!(c.regs.a, 0x20);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0x1F], Register::A, 0x00);
+        assert_eq!(c.regs.a, 0x00);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg_flags(&[0x1F], Register::A, 0x03, &[Flag::C]);
+        assert_eq!(c.regs.a, 0x81);
         assert!(c.regs.test_flag(Flag::C));
         assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
