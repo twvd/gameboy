@@ -126,6 +126,10 @@ impl Bus for Gameboybus {
             0xFF50 if self.boot_rom_enabled => 0,
             0xFF50 => 1,
 
+            // I/O - LCD OAM DMA start
+            // Handled here because we need to access source memory
+            0xFF46 => 0,
+
             // I/O - LCD I/O
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
 
@@ -186,6 +190,14 @@ impl Bus for Gameboybus {
             // I/O - Boot ROM disable
             0xFF50 => if val > 0 && self.boot_rom_enabled {
                 self.boot_rom_enabled = false;
+            },
+
+            // I/O - LCD OAM DMA start
+            // Handled here because we need to access source memory
+            0xFF46 => {
+                for i in 0u16..=0x9F {
+                    self.write(0xFE00 | i, self.read(((val as u16) << 8) | i));
+                }
             },
 
             // I/O - LCD I/O

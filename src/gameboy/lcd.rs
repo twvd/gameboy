@@ -7,6 +7,7 @@ pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
 
 const OAM_SIZE: usize = 0xA0;
+const OAM_ENTRY_SIZE: usize = 4;
 const VRAM_SIZE: usize = 0x2000;
 
 //const OAM_ENTRIES: usize = 40;
@@ -19,6 +20,8 @@ const TILE_H: usize = 8;
 const LCDC_ENABLE: u8 = 1 << 7;
 const LCDC_BGW_TILEDATA: u8 = 1 << 4;
 const LCDC_BGW_TILEMAP: u8 = 1 << 3;
+const LCDC_OBJ_SIZE: u8 = 1 << 2;
+const LCDC_OBJ_ENABLE: u8 = 1 << 1;
 const LCDC_BGW_ENABLE: u8 = 1 << 0;
 
 #[derive(Copy, Clone)]
@@ -147,6 +150,19 @@ impl LCDController {
     }
 
     #[inline(always)]
+    fn get_sprite(&self, tile_idx: usize) -> &[u8] {
+        // VRAM offset = 8000 - 9FFF
+        // Sprites always start from 8000 (tile_idx 0)
+        // Sprites can be 8x8 or 8x16 (LCDC_OBJ_SIZE)
+        // In 8x16 mode, the least significant bit of tile_idx
+        // is ignored.
+        let offset = 0x8000;
+        let tile_addr = offset - 0x8000 + tile_idx * TILE_BSIZE;
+
+        &self.vram[tile_addr..tile_addr + TILE_BSIZE]
+    }
+
+    #[inline(always)]
     fn tile_decode(tile: &[u8], x: usize, y: usize) -> u8 {
         // Least significant bit in the odd bytes,
         // most significant bit in the even bytes.
@@ -191,6 +207,9 @@ impl LCDController {
 
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx,
+
+            // OAM DMA start
+            0xFF46 => 0,
 
             // LY - LCD update Y position
             0xFF44 => self.ly,
@@ -252,8 +271,8 @@ impl LCDController {
             return;
         }
 
+        // Background
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
-            // Background
             for x in 0..32 {
                 for y in 0..32 {
                     let tile = self.get_bg_tile(x, y).to_owned();
@@ -264,6 +283,31 @@ impl LCDController {
                         self.bgp,
                     );
                 }
+            }
+        }
+
+        // Object sprites
+        if self.lcdc & LCDC_OBJ_ENABLE == LCDC_OBJ_ENABLE {
+            if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
+                // 16px wide sprites
+                todo!();
+            }
+
+            for obj_idx in 0..(OAM_SIZE / OAM_ENTRY_SIZE) {
+                let entry =
+                    self.oam[(obj_idx * OAM_ENTRY_SIZE)..(obj_idx + 1) * OAM_ENTRY_SIZE].to_owned();
+                let (y, x, tile_idx, flags) = (entry[0], entry[1], entry[2], entry[3]);
+                let disp_y = y as isize - 16;
+                let disp_x = x as isize - 8;
+
+                let sprite = self.get_sprite(tile_idx as usize).to_owned();
+
+                self.draw_tile_at(
+                    &sprite,
+                    disp_x,
+                    disp_y,
+                    self.obp[((flags & 0x10) >> 4) as usize],
+                );
             }
         }
 
