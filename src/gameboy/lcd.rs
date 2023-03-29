@@ -65,6 +65,9 @@ pub struct LCDController {
     /// Background/window palette
     bgp: u8,
 
+    /// Object Palettes
+    obp: [u8; 2],
+
     /// Output display needs updsting
     redraw_pending: bool,
 
@@ -93,6 +96,7 @@ impl LCDController {
             scx: 0,
             ly: 0,
             bgp: 0,
+            obp: [0, 0],
 
             redraw_pending: false,
 
@@ -166,8 +170,12 @@ impl LCDController {
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
 
-            // BGP - Bsckground and window palette
+            // BGP - Background and window palette
             0xFF47 => self.bgp = val,
+
+            // OBPx - Object Palette
+            0xFF48 => self.obp[0] = val,
+            0xFF49 => self.obp[1] = val,
 
             _ => (), //println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
         }
@@ -190,6 +198,10 @@ impl LCDController {
             // BGP - Bsckground and window palette
             0xFF47 => self.bgp,
 
+            // OBPx - Object palette
+            0xFF48 => self.obp[0],
+            0xFF49 => self.obp[1],
+
             _ => {
                 //println!("Read from unknown LCD address: {:04X}", addr);
                 0
@@ -210,20 +222,16 @@ impl LCDController {
     }
 
     /// Converts a color index to a color from the
-    /// background/window palette
+    /// BG/OBJ palettes
     /// (DMG-mode only)
-    fn bgp_convert(&self, cidx: u8) -> u8 {
-        (self.bgp >> (cidx * 2)) & 3
+    fn palette_convert(cidx: u8, palette: u8) -> u8 {
+        (palette >> (cidx * 2)) & 3
     }
 
-    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, use_bgp: bool) {
+    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, palette: u8) {
         for tx in 0..TILE_W {
             for ty in 0..TILE_H {
-                let color = if use_bgp {
-                    self.bgp_convert(Self::tile_decode(&tile, tx, ty))
-                } else {
-                    Self::tile_decode(&tile, tx, ty)
-                };
+                let color = Self::palette_convert(Self::tile_decode(&tile, tx, ty), palette);
                 let disp_x = x + tx as isize;
                 let disp_y = y + ty as isize;
 
@@ -253,7 +261,7 @@ impl LCDController {
                         &tile,
                         (x * TILE_W) as isize - self.scx as isize,
                         (y * TILE_H) as isize - self.scy as isize,
-                        true,
+                        self.bgp,
                     );
                 }
             }
