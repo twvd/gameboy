@@ -202,8 +202,33 @@ impl CPU {
         self.op_set_res(instr, false)
     }
 
-    pub fn op_srl(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SRL - Shift right
+    pub fn op_srl(&mut self, instr: &Instruction) -> CPUOpResult {
+        let result = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                let val = self.regs.read8(reg)?;
+                let result = alu::shright_8b(val);
+                self.regs.write8(reg, result.result)?;
+                result
+            }
+            Operand::RegisterIndirect(reg) => {
+                let addr = self.regs.read16(reg)?;
+                let val = self.bus.read(addr);
+                let result = alu::shright_8b(val);
+                self.bus.write(addr, result.result);
+                result
+            }
+            _ => unreachable!(),
+        };
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, (result.result == 0)),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// SWAP - Swap nibbles
@@ -2445,6 +2470,23 @@ mod tests {
         cpu_run(&mut c);
         assert!(!c.regs.test_flag(Flag::C));
         assert_eq!(c.bus.read(0x1122), 0xC1);
+    }
+
+    #[test]
+    fn op_srl_reg() {
+        let c = run_reg(&[0xCB, 0x38], Register::B, 0x81); // SRL B
+        assert!(c.regs.test_flag(Flag::C));
+        assert_eq!(c.regs.b, 0x40);
+    }
+
+    #[test]
+    fn op_srl_indreg() {
+        let mut c = cpu(&[0xCB, 0x3E]); // SRL (HL)
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x82);
+        cpu_run(&mut c);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert_eq!(c.bus.read(0x1122), 0x41);
     }
 
     #[test]
