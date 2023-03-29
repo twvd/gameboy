@@ -62,6 +62,9 @@ pub struct LCDController {
     /// Current scanline
     ly: u8,
 
+    /// Background/window palette
+    bgp: u8,
+
     /// Output display needs updsting
     redraw_pending: bool,
 
@@ -88,8 +91,9 @@ impl LCDController {
             lcdc: 0,
             scy: 0,
             scx: 0,
-
             ly: 0,
+            bgp: 0,
+
             redraw_pending: false,
 
             dots: 0,
@@ -162,6 +166,9 @@ impl LCDController {
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
 
+            // BGP - Bsckground and window palette
+            0xFF47 => self.bgp = val,
+
             _ => (), //println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
         }
     }
@@ -179,6 +186,10 @@ impl LCDController {
 
             // LY - LCD update Y position
             0xFF44 => self.ly,
+
+            // BGP - Bsckground and window palette
+            0xFF47 => self.bgp,
+
             _ => {
                 //println!("Read from unknown LCD address: {:04X}", addr);
                 0
@@ -198,10 +209,21 @@ impl LCDController {
         self.vram[addr]
     }
 
-    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize) {
+    /// Converts a color index to a color from the
+    /// background/window palette
+    /// (DMG-mode only)
+    fn bgp_convert(&self, cidx: u8) -> u8 {
+        (self.bgp >> (cidx * 2)) & 3
+    }
+
+    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, use_bgp: bool) {
         for tx in 0..TILE_W {
             for ty in 0..TILE_H {
-                let color = Self::tile_decode(&tile, tx, ty);
+                let color = if use_bgp {
+                    self.bgp_convert(Self::tile_decode(&tile, tx, ty))
+                } else {
+                    Self::tile_decode(&tile, tx, ty)
+                };
                 let disp_x = x + tx as isize;
                 let disp_y = y + ty as isize;
 
@@ -231,6 +253,7 @@ impl LCDController {
                         &tile,
                         (x * TILE_W) as isize - self.scx as isize,
                         (y * TILE_H) as isize - self.scy as isize,
+                        true,
                     );
                 }
             }
