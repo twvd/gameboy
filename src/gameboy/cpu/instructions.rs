@@ -2300,7 +2300,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Register(Register::HL), Operand::SPRelative8],
         len: 2,
         cycles: [12, 12],
-        func: CPU::op_ld,
+        func: CPU::op_ld_hl_sp_e,
     },
     // LD SP,HL (1), - - - -
     InstructionDef {

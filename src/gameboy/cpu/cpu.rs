@@ -614,6 +614,39 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
+    /// LD HL,SP+r8 - Load
+    /// This variant affects flags so it is implemented seperately from LD.
+    pub fn op_ld_hl_sp_e(&mut self, instr: &Instruction) -> CPUOpResult {
+        let Operand::Register(dest) = instr.def.operands[0]
+            else { unreachable!() };
+        assert_eq!(dest, Register::HL);
+        let sp = self.regs.sp;
+        let rel = instr.imms8(1)? as i16;
+        let sp_rel = sp.wrapping_add_signed(rel);
+
+        let (carry, halfcarry) = if rel >= 0 {
+            (
+                ((sp as i16 & 0xFF) + rel) > 0xFF,
+                ((sp as i16 & 0x0F) + (rel & 0x0F)) > 0x0F,
+            )
+        } else {
+            (
+                (sp & 0xFF) >= (sp_rel & 0xFF),
+                (sp & 0x0F) >= (sp_rel & 0x0F),
+            )
+        };
+
+        self.regs.write(dest, sp_rel)?;
+        self.regs.write_flags(&[
+            (Flag::C, carry),
+            (Flag::H, halfcarry),
+            (Flag::Z, false),
+            (Flag::N, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
+    }
+
     /// SCF - Set carry flag
     pub fn op_scf(&mut self, instr: &Instruction) -> CPUOpResult {
         self.regs.write_flags(&[(Flag::C, true)]);
@@ -2305,6 +2338,54 @@ mod tests {
         c.bus.write(0x1122, 0x5A);
         cpu_run(&mut c);
         assert_eq!(c.regs.a, 0x5A);
+    }
+
+    #[test]
+    fn op_ld_hl_sp_e_pos() {
+        let c = run_reg(&[0xF8, 0x10], Register::SP, 0x1000);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x1010);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xF8, 0x0F], Register::SP, 0x1004);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x1013);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xF8, 0x10], Register::SP, 0xFFFF);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x000F);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_ld_hl_sp_e_neg() {
+        let c = run_reg(&[0xF8, 0xF0], Register::SP, 0x1000);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x0FF0);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xF8, 0xFD], Register::SP, 0x1004);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x1001);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+
+        let c = run_reg(&[0xF8, 0xFF], Register::SP, 0x0000);
+        assert_eq!(c.regs.read16(Register::HL).unwrap(), 0xFFFF);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
     }
 
     #[test]
