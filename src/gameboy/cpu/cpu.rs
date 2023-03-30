@@ -562,8 +562,12 @@ impl CPU {
             Operand::Register(reg) => self.regs.read(*reg),
             // LD _, (reg)
             Operand::RegisterIndirect(reg) => {
-                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.bus.read(self.regs.read(*reg)).into()
+                let addr = match reg.width() {
+                    RegisterWidth::SixteenBit => self.regs.read16(*reg)?,
+                    RegisterWidth::EightBit => 0xFF00 | self.regs.read8(*reg)? as u16,
+                };
+
+                self.bus.read(addr).into()
             }
             // LD _, (reg+)
             Operand::RegisterIndirectInc(reg) => {
@@ -1234,6 +1238,15 @@ mod tests {
         c.regs.a = 0x5A;
         cpu_run(&mut c);
         assert_eq!(c.bus.read(0xFF11), 0x5A);
+    }
+
+    #[test]
+    fn op_ld_reg_indreg8() {
+        let mut c = cpu(&[0xF2]); // LD A,(C)
+        c.regs.c = 0x11;
+        c.bus.write(0xFF11, 0x5A);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x5A);
     }
 
     #[test]
