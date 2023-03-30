@@ -420,8 +420,20 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_rlca(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RLCA - Rotate Left (copy to carry) - register A
+    pub fn op_rlca(&mut self, instr: &Instruction) -> CPUOpResult {
+        let reg = Register::A;
+        let result = alu::rotleft_8b(self.regs.read8(reg)?);
+        self.regs.write8(reg, result.result)?;
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// RR - Rotate Right (bit 9 = carry)
@@ -495,8 +507,20 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_rrca(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// RRCA - Rotate Right (copy to carry) - register A
+    pub fn op_rrca(&mut self, instr: &Instruction) -> CPUOpResult {
+        let reg = Register::A;
+        let result = alu::rotright_8b(self.regs.read8(reg)?);
+        self.regs.write8(reg, result.result)?;
+
+        self.regs.write_flags(&[
+            (Flag::C, result.carry),
+            (Flag::H, false),
+            (Flag::N, false),
+            (Flag::Z, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// EI - Enable Interrupts
@@ -2666,6 +2690,26 @@ mod tests {
         cpu_run(&mut c);
         assert!(!c.regs.test_flag(Flag::C));
         assert_eq!(c.bus.read(0x1122), 0x41);
+    }
+
+    #[test]
+    fn op_rlca() {
+        let c = run_reg(&[0x07], Register::A, 0x85); // RLCA
+        assert_eq!(c.regs.a, 0x0B);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
+    }
+
+    #[test]
+    fn op_rrca() {
+        let c = run_reg(&[0x0F], Register::A, 0x3B); // RRCA
+        assert_eq!(c.regs.a, 0x9D);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
+        assert!(!c.regs.test_flag(Flag::Z));
     }
 
     #[test]
