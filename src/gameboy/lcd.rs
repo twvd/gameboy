@@ -139,12 +139,21 @@ impl LCDController {
         // VRAM offset = 8000 - 9FFF
         // BG tile data at 8800 - 97FF and 8000 - 8FFF
         // BG tiles always 8 x 8 pixels
-        let offset = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
-            0x8000
+        let tile_id = self.get_bg_tile_id(tm_x, tm_y) as usize;
+        let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
+            // 0x8000 base offset, contiguous blocks
+            0x8000 + tile_id * TILE_BSIZE
         } else {
-            0x8800
+            // 0-127 from 0x9000, 128-255 from 0x8800
+            if tile_id < 128 {
+                0x9000 + tile_id * TILE_BSIZE
+            } else {
+                0x8800 + (tile_id - 128) * TILE_BSIZE
+            }
         };
-        let tile_addr = offset - 0x8000 + self.get_bg_tile_id(tm_x, tm_y) as usize * TILE_BSIZE;
+
+        // Correct for our VRAM array
+        let tile_addr = tile_addr - 0x8000;
 
         &self.vram[tile_addr..tile_addr + TILE_BSIZE]
     }
