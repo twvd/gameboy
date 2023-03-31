@@ -14,6 +14,28 @@ pub fn add_8b(a: u8, b: u8) -> ALUResult<u8> {
     }
 }
 
+/// 8-bit add + carry
+pub fn add_8bc(a: u8, b: u8, carry: bool) -> ALUResult<u8> {
+    let c: u8 = if carry { 1 } else { 0 };
+    let result: u16 = a as u16 + b as u16 + c as u16;
+    ALUResult {
+        result: result as u8,
+        carry: (result > u8::MAX.into()),
+        halfcarry: (((a & 0x0F) + (b & 0x0F) + c) & 0x10) == 0x10,
+    }
+}
+
+/// 8-bit subtract - carry
+pub fn sub_8bc(a: u8, b: u8, carry: bool) -> ALUResult<u8> {
+    let c: u8 = if carry { 1 } else { 0 };
+    let result: i16 = a as i16 - b as i16 - c as i16;
+    ALUResult {
+        result: result as u8,
+        carry: result < 0,
+        halfcarry: (result as u8 & 0x0F) > ((a as u8 - c) & 0x0F),
+    }
+}
+
 /// 16-bit add
 pub fn add_16b(a: u16, b: u16) -> ALUResult<u16> {
     let result: u32 = a as u32 + b as u32;
@@ -148,6 +170,24 @@ mod tests {
     }
 
     #[test]
+    fn add_8bc() {
+        let r = super::add_8bc(0xE1, 0x0F, true);
+        assert_eq!(r.result, 0xF1);
+        assert!(!r.carry);
+        assert!(r.halfcarry);
+
+        let r = super::add_8bc(0xE1, 0x3B, true);
+        assert_eq!(r.result, 0x1D);
+        assert!(r.carry);
+        assert!(!r.halfcarry);
+
+        let r = super::add_8bc(0xE1, 0x1E, true);
+        assert_eq!(r.result, 0x00);
+        assert!(r.carry);
+        assert!(r.halfcarry);
+    }
+
+    #[test]
     fn rotleft_8b() {
         let r = super::rotleft_8b(0b01010101);
         assert_eq!(r.result, 0b10101010);
@@ -231,6 +271,24 @@ mod tests {
         assert_eq!(r.result, 0xFE);
         assert!(r.carry);
         assert!(!r.halfcarry);
+    }
+
+    #[test]
+    fn sub_8bc() {
+        let r = super::sub_8bc(0x3B, 0x2A, true);
+        assert_eq!(r.result, 0x10);
+        assert!(!r.carry);
+        assert!(!r.halfcarry);
+
+        let r = super::sub_8bc(0x3B, 0x3A, true);
+        assert_eq!(r.result, 0x00);
+        assert!(!r.carry);
+        assert!(!r.halfcarry);
+
+        let r = super::sub_8bc(0x3B, 0x4F, true);
+        assert_eq!(r.result, 0xEB);
+        assert!(r.carry);
+        assert!(r.halfcarry);
     }
 
     #[test]

@@ -827,8 +827,40 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_adc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// ADC - Add (8-bit) plus carry
+    pub fn op_adc(&mut self, instr: &Instruction) -> CPUOpResult {
+        // First operand is always A
+        let left = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg, Register::A);
+                self.regs.read8(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let right = match instr.def.operands[1] {
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            Operand::Immediate8 => instr.imm8(1)?,
+            _ => unreachable!(),
+        };
+
+        let result = alu::add_8bc(left, right, self.regs.test_flag(Flag::C));
+        self.regs.write8(Register::A, result.result)?;
+        self.regs.write_flags(&[
+            (Flag::Z, result.result == 0),
+            (Flag::C, result.carry),
+            (Flag::H, result.halfcarry),
+            (Flag::N, false),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_daa(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -1174,12 +1206,45 @@ impl CPU {
         self.op_ret_cc(instr, true)
     }
 
-    pub fn op_sbc(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// SBC - Subtract (8-bit) minus carry
+    pub fn op_sbc(&mut self, instr: &Instruction) -> CPUOpResult {
+        // First operand is always A
+        let left = match instr.def.operands[0] {
+            Operand::Register(reg) => {
+                assert_eq!(reg, Register::A);
+                self.regs.read8(reg)?
+            }
+            _ => unreachable!(),
+        };
+
+        let right = match instr.def.operands[1] {
+            Operand::RegisterIndirect(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+                self.bus.read(self.regs.read16(reg)?)
+            }
+            Operand::Register(reg) => {
+                assert_eq!(reg.width(), RegisterWidth::EightBit);
+                self.regs.read8(reg)?
+            }
+            Operand::Immediate8 => instr.imm8(1)?,
+            _ => unreachable!(),
+        };
+
+        let result = alu::sub_8bc(left, right, self.regs.test_flag(Flag::C));
+        self.regs.write8(Register::A, result.result)?;
+        self.regs.write_flags(&[
+            (Flag::Z, result.result == 0),
+            (Flag::C, result.carry),
+            (Flag::H, result.halfcarry),
+            (Flag::N, true),
+        ]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     pub fn op_prefix_cb(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+        // Implemented as separate dispatch table
+        unreachable!();
     }
 
     pub fn op_invalid(&mut self, _instr: &Instruction) -> CPUOpResult {
@@ -2722,5 +2787,63 @@ mod tests {
         assert_eq!(c.regs.pc, 0x41);
         assert!(!c.ime);
         assert_eq!(c.bus.read(0xFF0F), 0);
+    }
+
+    #[test]
+    fn op_adc_reg() {
+        let mut c = cpu(&[0x88]); // ADC A,B
+        c.regs.a = 0xE1;
+        c.regs.b = 0x0F;
+        c.regs.write_flags(&[(Flag::C, true)]);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0xF1);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_adc_indreg() {
+        let mut c = cpu(&[0x8E]); // ADC A,(HL)
+        c.regs.a = 0xE1;
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x3B);
+        c.regs.write_flags(&[(Flag::C, true)]);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x1D);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(!c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_sbc_reg() {
+        let mut c = cpu(&[0x98]); // SBC A,B
+        c.regs.a = 0x3B;
+        c.regs.b = 0x2A;
+        c.regs.write_flags(&[(Flag::C, true)]);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0x10);
+        assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_sbc_indreg() {
+        let mut c = cpu(&[0x9E]); // SBC A,(HL)
+        c.regs.a = 0x3B;
+        c.regs.write(Register::HL, 0x1122).unwrap();
+        c.bus.write(0x1122, 0x4F);
+        c.regs.write_flags(&[(Flag::C, true)]);
+        cpu_run(&mut c);
+        assert_eq!(c.regs.a, 0xEB);
+        assert!(c.regs.test_flag(Flag::C));
+        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::Z));
+        assert!(c.regs.test_flag(Flag::N));
     }
 }
