@@ -863,8 +863,33 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_daa(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// DAA - Decimal (BCD) adjust register A
+    pub fn op_daa(&mut self, instr: &Instruction) -> CPUOpResult {
+        let val = self.regs.read8(Register::A)?;
+        let mut result = val;
+        let mut carry = false;
+
+        if self.regs.test_flag(Flag::N) {
+            if self.regs.test_flag(Flag::H) {
+                result -= 0x06;
+            }
+            if self.regs.test_flag(Flag::C) {
+                result -= 0x60;
+            }
+        } else {
+            if self.regs.test_flag(Flag::C) || val > 0x99 {
+                result += 0x60;
+                carry = true;
+            }
+            if self.regs.test_flag(Flag::H) || (val & 0x0F) > 0x09 {
+                result += 0x06;
+            }
+        }
+        self.regs.write8(Register::A, result)?;
+        self.regs
+            .write_flags(&[(Flag::C, carry), (Flag::H, false), (Flag::Z, result == 0)]);
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// ADD - Add (8-bit)
@@ -2778,18 +2803,6 @@ mod tests {
     }
 
     #[test]
-    fn interrupt_vblank() {
-        let mut c = cpu(&[0x00]); // NOP
-        c.ime = true;
-        c.bus.write(0xFFFF, 1); // IE
-        c.bus.write(0xFF0F, 1); // IF
-        cpu_run(&mut c);
-        assert_eq!(c.regs.pc, 0x41);
-        assert!(!c.ime);
-        assert_eq!(c.bus.read(0xFF0F), 0);
-    }
-
-    #[test]
     fn op_adc_reg() {
         let mut c = cpu(&[0x88]); // ADC A,B
         c.regs.a = 0xE1;
@@ -2845,5 +2858,27 @@ mod tests {
         assert!(c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::Z));
         assert!(c.regs.test_flag(Flag::N));
+    }
+
+    #[test]
+    fn op_daa() {
+        let c = run_reg_flags(&[0x27], Register::A, 0x7D, &[]);
+        assert_eq!(c.regs.a, 0x83);
+        assert!(!c.regs.test_flag(Flag::N));
+
+        let c = run_reg_flags(&[0x27], Register::A, 0x4B, &[Flag::N, Flag::H]);
+        assert_eq!(c.regs.a, 0x45);
+    }
+
+    #[test]
+    fn interrupt_vblank() {
+        let mut c = cpu(&[0x00]); // NOP
+        c.ime = true;
+        c.bus.write(0xFFFF, 1); // IE
+        c.bus.write(0xFF0F, 1); // IF
+        cpu_run(&mut c);
+        assert_eq!(c.regs.pc, 0x41);
+        assert!(!c.ime);
+        assert_eq!(c.bus.read(0xFF0F), 0);
     }
 }
