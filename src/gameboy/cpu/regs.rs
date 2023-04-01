@@ -127,6 +127,11 @@ impl RegisterFile {
             // MSB, LSB
             Ok(((val >> 8) as u8, (val & 0xFF) as u8))
         };
+        let reg_af = || -> Result<(u8, u8)> {
+            // MSB, LSB
+            // Bottom 4 bits of F always read 0
+            Ok(((val >> 8) as u8, (val & 0xF0) as u8))
+        };
 
         match reg {
             // 8-bit single registers
@@ -135,12 +140,13 @@ impl RegisterFile {
             Register::C => self.c = reg8()?,
             Register::D => self.d = reg8()?,
             Register::E => self.e = reg8()?,
-            Register::F => self.f = reg8()?,
+            // Bottom 4 bits of F always read 0
+            Register::F => self.f = reg8()? & 0xF0,
             Register::H => self.h = reg8()?,
             Register::L => self.l = reg8()?,
 
             // 16-bit combination registers
-            Register::AF => (self.a, self.f) = reg16()?,
+            Register::AF => (self.a, self.f) = reg_af()?,
             Register::BC => (self.b, self.c) = reg16()?,
             Register::DE => (self.d, self.e) = reg16()?,
             Register::HL => (self.h, self.l) = reg16()?,
@@ -260,7 +266,7 @@ impl RegisterFile {
                 f |= bit;
             }
         }
-        self.f = f;
+        self.f = f & 0xF0;
     }
 
     /// Test a flag.
@@ -313,9 +319,10 @@ mod tests {
         r.write(Register::E, 0x12).unwrap();
         assert_eq!(r.e, 0x12);
 
+        // Bottom 4-bits of F always read 0
         let mut r = RegisterFile::new();
-        r.write(Register::F, 0x12).unwrap();
-        assert_eq!(r.f, 0x12);
+        r.write(Register::F, 0xFF).unwrap();
+        assert_eq!(r.f, 0xF0);
 
         let mut r = RegisterFile::new();
         r.write(Register::H, 0x12).unwrap();
@@ -341,7 +348,8 @@ mod tests {
     fn write_comb16bit() {
         let mut r = RegisterFile::new();
         r.write(Register::AF, 0x1234).unwrap();
-        assert_eq!((r.a, r.f), (0x12, 0x34));
+        // Bottom 4 bits of F always read 0
+        assert_eq!((r.a, r.f), (0x12, 0x30));
 
         let mut r = RegisterFile::new();
         r.write(Register::BC, 0x1234).unwrap();
@@ -434,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn write_flags_low_nibble_untouched() {
+    fn write_flags_low_nibble_reset() {
         let mut r = RegisterFile::new();
         r.f = 0xFF;
         r.write_flags(&[
@@ -443,15 +451,15 @@ mod tests {
             (Flag::H, false),
             (Flag::C, false),
         ]);
-        assert_eq!(r.f, 0x0F);
+        assert_eq!(r.f, 0x00);
     }
 
     #[test]
     fn write_flags_none() {
         let mut r = RegisterFile::new();
-        r.f = 0xFF;
+        r.f = 0xF0;
         r.write_flags(&[]);
-        assert_eq!(r.f, 0xFF);
+        assert_eq!(r.f, 0xF0);
     }
 
     #[test]

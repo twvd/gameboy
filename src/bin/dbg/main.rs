@@ -82,7 +82,7 @@ fn main() -> Result<()> {
     let mut cpu = CPU::new(bus);
 
     loop {
-        if args.verbose {
+        if args.verbose && cpu.bus.read(0xFF50) == 1 {
             let state = format!(
                 "Cycle: {}\n{}\n --> {}\n",
                 cpu.get_cycles(),
