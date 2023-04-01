@@ -10,6 +10,16 @@ pub trait Bus: Tickable {
         }
     }
 
+    fn read_vec(&self, addr: u16, size: usize) -> Vec<u8> {
+        let mut addr = addr;
+        let mut ret: Vec<u8> = vec![];
+        for _ in 0..size {
+            ret.push(self.read(addr));
+            addr = addr.wrapping_add(1);
+        }
+        ret
+    }
+
     /// Write 16-bits to addr and addr + 1,
     /// in little endian.
     fn write16(&mut self, addr: u16, val: u16) {

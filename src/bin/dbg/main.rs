@@ -12,6 +12,7 @@ use gbrust::display::display::{Display, NullDisplay};
 use gbrust::gameboy::bus::bus::Bus;
 use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
+use gbrust::gameboy::cartridge::cartridge;
 use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::lcd::LCDController;
 use gbrust::tickable::Tickable;
@@ -60,11 +61,14 @@ fn main() -> Result<()> {
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
+        let cartridge = cartridge::load(&rom);
+        println!("Cartridge loaded");
+        println!("{}", cartridge);
         if let Some(brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
-            Box::new(Gameboybus::new(&rom, Some(bootrom.as_slice()), lcd))
+            Box::new(Gameboybus::new(cartridge, Some(bootrom.as_slice()), lcd))
         } else {
-            Box::new(Gameboybus::new(&rom, None, lcd))
+            Box::new(Gameboybus::new(cartridge, None, lcd))
         }
     };
 

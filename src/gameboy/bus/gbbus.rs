@@ -1,3 +1,4 @@
+use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
 use super::super::lcd::LCDController;
 use super::bus::Bus;
@@ -5,15 +6,10 @@ use crate::tickable::Tickable;
 
 use anyhow::Result;
 
-const CART_ROM_BANK_SIZE: usize = 16 * 1024;
-
-type CartROMBank = [u8; CART_ROM_BANK_SIZE];
-
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
+    cart: Box<dyn Cartridge>,
     boot_rom: [u8; 256],
-
-    cart_rom: [CartROMBank; 2],
 
     boot_rom_enabled: bool,
 
@@ -32,9 +28,9 @@ pub struct Gameboybus {
 }
 
 impl Gameboybus {
-    pub fn new(cart: &[u8], bootrom: Option<&[u8]>, lcd: LCDController) -> Self {
+    pub fn new(cart: Box<dyn Cartridge>, bootrom: Option<&[u8]>, lcd: LCDController) -> Self {
         let mut bus = Gameboybus {
-            cart_rom: [[0; CART_ROM_BANK_SIZE]; 2],
+            cart,
             boot_rom: [0; 256],
             boot_rom_enabled: false,
 
@@ -53,12 +49,6 @@ impl Gameboybus {
             bus.boot_rom.copy_from_slice(br);
             bus.boot_rom_enabled = true;
         }
-
-        // TODO support cartridges with different
-        // amount of banks etc.
-        assert_eq!(cart.len(), 32 * 1024);
-        bus.cart_rom[0].copy_from_slice(&cart[0..(16 * 1024)]);
-        bus.cart_rom[1].copy_from_slice(&cart[(16 * 1024)..]);
 
         bus
     }
@@ -83,12 +73,8 @@ impl Bus for Gameboybus {
             // Boot ROM
             0x0000..=0x00FF if self.boot_rom_enabled => self.boot_rom[addr],
 
-            // Cartridge bank 0
-            0x0000..=0x3FFF => self.cart_rom[0][addr],
-
-            // Cartridge bank 1
-            // TODO bank switching
-            0x4000..=0x7FFF => self.cart_rom[1][addr - 0x4000],
+            // Cartridge ROM
+            0x0000..=0x7FFF => self.cart.read(addr as u16),
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.read_vram(addr - 0x8000),
@@ -153,10 +139,8 @@ impl Bus for Gameboybus {
         let addr = addr as usize;
 
         match addr {
-            // Cartridge bank 0
-            0x0000..=0x3FFF |
-            // Cartridge bank 1
-            0x4000..=0x7FFF => (), //println!("Write to read-only address {:04X}", addr),
+            // Cartridge ROM
+            0x0000..=0x7FFF => self.cart.write(addr as u16, val),
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.write_vram(addr - 0x8000, val),
@@ -188,9 +172,11 @@ impl Bus for Gameboybus {
             0xFF10..=0xFF3F => (),
 
             // I/O - Boot ROM disable
-            0xFF50 => if val > 0 && self.boot_rom_enabled {
-                self.boot_rom_enabled = false;
-            },
+            0xFF50 => {
+                if val > 0 && self.boot_rom_enabled {
+                    self.boot_rom_enabled = false;
+                }
+            }
 
             // I/O - LCD OAM DMA start
             // Handled here because we need to access source memory
@@ -198,12 +184,12 @@ impl Bus for Gameboybus {
                 for i in 0u16..=0x9F {
                     self.write(0xFE00 | i, self.read(((val as u16) << 8) | i));
                 }
-            },
+            }
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B
-                | 0xFF51..=0xFF55
-                | 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
+            0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => {
+                self.lcd.write_io(addr as u16, val)
+            }
             // Other I/O registers
             0xFF00..=0xFF7F => (), //println!("Write to unknown I/O address {:04X}", addr),
 
