@@ -32,7 +32,7 @@ pub fn sub_8bc(a: u8, b: u8, carry: bool) -> ALUResult<u8> {
     ALUResult {
         result: result as u8,
         carry: result < 0,
-        halfcarry: (result as u8 & 0x0F) > ((a as u8 - c) & 0x0F),
+        halfcarry: (((a & 0x0F).wrapping_sub(b & 0x0F).wrapping_sub(c)) & 0x10) == 0x10,
     }
 }
 
