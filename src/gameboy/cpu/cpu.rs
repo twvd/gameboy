@@ -684,23 +684,19 @@ impl CPU {
 
     /// SCF - Set carry flag
     pub fn op_scf(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.regs.write_flags(&[
-            (Flag::C, true),
-            (Flag::N, false),
-            (Flag::H, false),
-        ]);
+        self.regs
+            .write_flags(&[(Flag::C, true), (Flag::N, false), (Flag::H, false)]);
 
         Ok(OpOk::ok(self, instr))
     }
 
     /// CCF - Flip carry flag
     pub fn op_ccf(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.regs
-            .write_flags(&[
-                (Flag::C, !self.regs.test_flag(Flag::C)),
-                (Flag::N, false),
-                (Flag::H, false),
-            ]);
+        self.regs.write_flags(&[
+            (Flag::C, !self.regs.test_flag(Flag::C)),
+            (Flag::N, false),
+            (Flag::H, false),
+        ]);
 
         Ok(OpOk::ok(self, instr))
     }
@@ -883,27 +879,26 @@ impl CPU {
 
     /// DAA - Decimal (BCD) adjust register A
     pub fn op_daa(&mut self, instr: &Instruction) -> CPUOpResult {
-        let val = self.regs.read8(Register::A)?;
-        let mut result = val;
-        let mut carry = false;
+        let mut result = self.regs.read8(Register::A)?;
+        let mut carry = self.regs.test_flag(Flag::C);
 
         if self.regs.test_flag(Flag::N) {
-            if self.regs.test_flag(Flag::H) {
-                result -= 0x06;
-            }
             if self.regs.test_flag(Flag::C) {
-                result -= 0x60;
+                result = result.wrapping_sub(0x60);
+            }
+            if self.regs.test_flag(Flag::H) {
+                result = result.wrapping_sub(0x06);
             }
         } else {
-            if self.regs.test_flag(Flag::C) || val > 0x99 {
-                result += 0x60;
+            if self.regs.test_flag(Flag::C) || result > 0x99 {
+                result = result.wrapping_add(0x60);
                 carry = true;
             }
-            if self.regs.test_flag(Flag::H) || (val & 0x0F) > 0x09 {
-                result += 0x06;
+            if self.regs.test_flag(Flag::H) || (result & 0x0F) > 0x09 {
+                result = result.wrapping_add(0x06);
             }
         }
-        self.regs.write8(Register::A, result)?;
+        self.regs.write8(Register::A, result as u8)?;
         self.regs
             .write_flags(&[(Flag::C, carry), (Flag::H, false), (Flag::Z, result == 0)]);
 
