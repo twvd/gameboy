@@ -6,6 +6,9 @@ use crate::tickable::Tickable;
 
 use anyhow::Result;
 
+use std::io;
+use std::io::Write;
+
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
     cart: Box<dyn Cartridge>,
@@ -25,6 +28,9 @@ pub struct Gameboybus {
 
     /// In VBlank?
     in_vblank: bool,
+
+    /// Serial data buffer
+    serialbuffer: u8,
 }
 
 impl Gameboybus {
@@ -43,6 +49,7 @@ impl Gameboybus {
 
             intflags: 0,
             in_vblank: false,
+            serialbuffer: 0,
         };
 
         if let Some(br) = bootrom {
@@ -101,6 +108,12 @@ impl Bus for Gameboybus {
 
             // I/O - Joypad
             0xFF00 => 0xFF,
+
+            // I/O - Serial transfer data buffer
+            0xFF01 => self.serialbuffer,
+
+            // I/O - Serial transfer control
+            0xFF02 => 0,
 
             // IF - interrupt flags
             0xFF0F => self.intflags,
@@ -164,6 +177,17 @@ impl Bus for Gameboybus {
 
             // Unusable segment
             0xFEA0..=0xFEFF => (),
+
+            // I/O - Serial transfer data buffer
+            0xFF01 => self.serialbuffer = val,
+
+            // I/O - Serial transfer control
+            0xFF02 => {
+                if val == 0x81 {
+                    print!("{}", self.serialbuffer as char);
+                    io::stdout().flush().unwrap_or_default();
+                }
+            }
 
             // IF - Interrupt Flags
             0xFF0F => self.intflags = val,
