@@ -565,7 +565,7 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    /// LD - Load Register
+    /// LD - Load
     pub fn op_ld(&mut self, instr: &Instruction) -> CPUOpResult {
         let indreg = |r: Register, regval| match r.width() {
             RegisterWidth::SixteenBit => regval,
@@ -606,7 +606,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
                 self.bus.read(self.regs.read_dec(*reg)?).into()
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
 
         // Destination operand
@@ -634,8 +634,15 @@ impl CPU {
                 self.bus.write(addr, val.try_into()?)
             }
             // LDH (a16), _
-            Operand::ImmediateIndirect16 => self.bus.write(instr.imm16(0)?, val.try_into()?),
-            _ => bail!("Invalid first operand: {:?}", instr.def.operands[0]),
+            Operand::ImmediateIndirect16 => match instr.def.operands[1] {
+                // LD (nn), reg16 should be 16-bit load
+                Operand::Register(reg) if reg.width() == RegisterWidth::SixteenBit => {
+                    self.bus.write16(instr.imm16(0)?, val)
+                }
+                // ..everything else
+                _ => self.bus.write(instr.imm16(0)?, val.try_into()?),
+            },
+            _ => unreachable!(),
         }
 
         Ok(OpOk::ok(self, instr))
