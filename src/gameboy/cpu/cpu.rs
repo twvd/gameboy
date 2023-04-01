@@ -551,8 +551,11 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    pub fn op_stop(&mut self, _instr: &Instruction) -> CPUOpResult {
-        todo!();
+    /// STOP 0 - Halts execution
+    pub fn op_stop(&mut self, instr: &Instruction) -> CPUOpResult {
+        self.halted = true;
+
+        Ok(OpOk::ok(self, instr))
     }
 
     /// HALT - Halts execution until interrupt or reset
