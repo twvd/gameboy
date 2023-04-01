@@ -684,7 +684,11 @@ impl CPU {
 
     /// SCF - Set carry flag
     pub fn op_scf(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.regs.write_flags(&[(Flag::C, true)]);
+        self.regs.write_flags(&[
+            (Flag::C, true),
+            (Flag::N, false),
+            (Flag::H, false),
+        ]);
 
         Ok(OpOk::ok(self, instr))
     }
@@ -692,7 +696,11 @@ impl CPU {
     /// CCF - Flip carry flag
     pub fn op_ccf(&mut self, instr: &Instruction) -> CPUOpResult {
         self.regs
-            .write_flags(&[(Flag::C, !self.regs.test_flag(Flag::C))]);
+            .write_flags(&[
+                (Flag::C, !self.regs.test_flag(Flag::C)),
+                (Flag::N, false),
+                (Flag::H, false),
+            ]);
 
         Ok(OpOk::ok(self, instr))
     }
@@ -2730,15 +2738,21 @@ mod tests {
     fn op_scf() {
         let c = run(&[0x37]);
         assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 
     #[test]
     fn op_ccf() {
         let c = run(&[0x3F]);
         assert!(c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
 
         let c = run_flags(&[0x3F], &[Flag::C]);
         assert!(!c.regs.test_flag(Flag::C));
+        assert!(!c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::N));
     }
 
     #[test]
