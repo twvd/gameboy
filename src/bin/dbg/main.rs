@@ -14,6 +14,7 @@ use gbrust::gameboy::bus::gbbus::Gameboybus;
 use gbrust::gameboy::bus::testbus::Testbus;
 use gbrust::gameboy::cartridge::cartridge;
 use gbrust::gameboy::cpu::cpu::CPU;
+use gbrust::gameboy::cpu::regs::Register;
 use gbrust::gameboy::lcd::LCDController;
 use gbrust::tickable::Tickable;
 
@@ -64,7 +65,7 @@ fn main() -> Result<()> {
         let cartridge = cartridge::load(&rom);
         println!("Cartridge loaded");
         println!("{}", cartridge);
-        if let Some(brfile) = args.bootrom {
+        if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
             Box::new(Gameboybus::new(cartridge, Some(bootrom.as_slice()), lcd))
         } else {
@@ -80,6 +81,21 @@ fn main() -> Result<()> {
     }
 
     let mut cpu = CPU::new(bus);
+
+    if args.bootrom.is_none() {
+        // Initialize registers to post-boot
+        cpu.regs.write(Register::A, 0x01)?;
+        cpu.regs.write(Register::F, 0xB0)?;
+        cpu.regs.write(Register::B, 0x00)?;
+        cpu.regs.write(Register::C, 0x13)?;
+        cpu.regs.write(Register::D, 0x00)?;
+        cpu.regs.write(Register::E, 0xD8)?;
+        cpu.regs.write(Register::H, 0x01)?;
+        cpu.regs.write(Register::H, 0x01)?;
+        cpu.regs.write(Register::L, 0x4D)?;
+        cpu.regs.write(Register::SP, 0xFFFE)?;
+        cpu.regs.write(Register::PC, 0x0100)?;
+    }
 
     loop {
         if args.verbose && cpu.bus.read(0xFF50) == 1 {
