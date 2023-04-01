@@ -1,6 +1,7 @@
 use crate::gameboy::bus::bus::Bus;
 use crate::tickable::Tickable;
 
+use super::mbc1::Mbc1;
 use super::romonly::RomOnly;
 
 use anyhow::Result;
@@ -23,7 +24,13 @@ pub enum CartridgeType {
 
 pub trait Cartridge: Bus + Tickable {
     fn get_title(&self) -> String {
-        String::from_utf8(self.read_vec(TITLE_OFFSET as u16, TITLE_SIZE)).unwrap()
+        String::from_utf8(
+            self.read_vec(TITLE_OFFSET as u16, TITLE_SIZE)
+                .into_iter()
+                .take_while(|&c| c != 0)
+                .collect(),
+        )
+        .unwrap()
     }
 
     fn get_type(&self) -> CartridgeType {
@@ -54,8 +61,9 @@ where
 pub fn load(rom: &[u8]) -> Box<dyn Cartridge> {
     assert!(rom.len() >= 32 * 1024);
 
-    Box::new(match CartridgeType::from_u8(rom[CARTTYPE_OFFSET]) {
-        Some(CartridgeType::Rom) => RomOnly::new(rom),
+    match CartridgeType::from_u8(rom[CARTTYPE_OFFSET]) {
+        Some(CartridgeType::Rom) => Box::new(RomOnly::new(rom)),
+        Some(CartridgeType::Mbc1) => Box::new(Mbc1::new(rom)),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
-    })
+    }
 }
