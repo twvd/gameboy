@@ -2,6 +2,8 @@ use crate::display::display::Display;
 use crate::tickable::Tickable;
 
 use anyhow::Result;
+use num_derive::ToPrimitive;
+use num_traits::ToPrimitive;
 
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
@@ -24,20 +26,13 @@ const LCDC_OBJ_SIZE: u8 = 1 << 2;
 const LCDC_OBJ_ENABLE: u8 = 1 << 1;
 const LCDC_BGW_ENABLE: u8 = 1 << 0;
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-struct OAMEntry {
-    y: u8,
-    x: u8,
-    tile_idx: u8,
-    flags: u8,
-}
+// Writable LCDS bits
+const LCDS_MASK: u8 = 0x78;
 
-impl OAMEntry {}
-
-enum LCDStat {
+#[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
+enum LCDStatMode {
     Search = 2,
-    Read = 3,
+    Transfer = 3,
     HBlank = 0,
     VBlank = 1,
 }
@@ -55,6 +50,9 @@ pub struct LCDController {
 
     /// LCDC - LCD Control register
     lcdc: u8,
+
+    /// LCDS - LCD Status register
+    lcds: u8,
 
     /// SCY - Scroll Y register
     scy: u8,
@@ -85,8 +83,14 @@ impl LCDController {
     /// Amount of vertical scanlines (including VBlank)
     const SCANLINES: u128 = 154;
 
-    /// Start of VBLANK period
+    /// Start scanline of VBLANK period
     const VBLANK_START: u128 = 144;
+
+    /// Amount of dots in 'search' mode
+    const SEARCH_PERIOD: u128 = 80;
+
+    /// Amount of dots in 'transfer' mode (actually 168 to 291)
+    const TRANSFER_PERIOD: u128 = 200;
 
     pub fn new(display: Box<dyn Display>) -> Self {
         Self {
@@ -95,6 +99,7 @@ impl LCDController {
             vram: [0; VRAM_SIZE],
 
             lcdc: 0,
+            lcds: 0,
             scy: 0,
             scx: 0,
             ly: 0,
@@ -104,6 +109,25 @@ impl LCDController {
             redraw_pending: false,
 
             dots: 0,
+        }
+    }
+
+    fn get_stat_mode(&self) -> LCDStatMode {
+        // Mode 2  2_____2_____2_____2_____2_____2___________________2____
+        // Mode 3  _33____33____33____33____33____33__________________3___
+        // Mode 0  ___000___000___000___000___000___000________________000
+        // Mode 1  ____________________________________11111111111111_____
+        if self.in_vblank() {
+            LCDStatMode::VBlank
+        } else {
+            let hpos = self.dots % Self::DOTS_PER_LINE;
+            if hpos < Self::SEARCH_PERIOD {
+                LCDStatMode::Search
+            } else if hpos < Self::SEARCH_PERIOD + Self::TRANSFER_PERIOD {
+                LCDStatMode::Transfer
+            } else {
+                LCDStatMode::HBlank
+            }
         }
     }
 
@@ -187,6 +211,9 @@ impl LCDController {
             // LCDC - LCD control register
             0xFF40 => self.lcdc = val,
 
+            // LCDS - LCD status register
+            0xFF41 => self.lcds = val & LCDS_MASK,
+
             // SCY - Background scrolling viewport Y
             0xFF42 => {
                 self.scy = val;
@@ -210,6 +237,9 @@ impl LCDController {
         match addr {
             // LCDC - LCD control register
             0xFF40 => self.lcdc,
+
+            // LCDS - LCD status register
+            0xFF41 => (self.lcds & LCDS_MASK) | self.get_stat_mode().to_u8().unwrap(),
 
             // SCY - Background scrolling viewport Y
             0xFF42 => self.scy,
@@ -345,6 +375,8 @@ impl Tickable for LCDController {
 mod tests {
     use super::*;
 
+    use crate::display::display::NullDisplay;
+
     #[test]
     fn tile_decode() {
         let tile = [0x3C, 0x7E];
@@ -353,5 +385,28 @@ mod tests {
         for x in 0..result.len() {
             assert_eq!(LCDController::tile_decode(&tile, x, 0), result[x]);
         }
+    }
+
+    #[test]
+    fn statmode() {
+        fn next(l: &mut LCDController) {
+            let val = l.get_stat_mode();
+            while l.get_stat_mode() == val {
+                l.tick(1).unwrap();
+            }
+        }
+
+        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        assert_eq!(c.get_stat_mode(), LCDStatMode::Search);
+
+        for _ in 0..LCDController::VBLANK_START {
+            assert_eq!(c.get_stat_mode(), LCDStatMode::Search);
+            next(&mut c);
+            assert_eq!(c.get_stat_mode(), LCDStatMode::Transfer);
+            next(&mut c);
+            assert_eq!(c.get_stat_mode(), LCDStatMode::HBlank);
+            next(&mut c);
+        }
+        assert_eq!(c.get_stat_mode(), LCDStatMode::VBlank);
     }
 }
