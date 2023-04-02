@@ -965,7 +965,6 @@ impl CPU {
             else { unreachable!() };
         self.regs.write(destreg, result.result)?;
         self.regs.write_flags(&[
-            (Flag::Z, result.result == 0),
             (Flag::C, result.carry),
             (Flag::H, result.halfcarry),
             (Flag::N, false),
