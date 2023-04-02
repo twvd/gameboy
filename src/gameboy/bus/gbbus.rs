@@ -135,7 +135,7 @@ impl Bus for Gameboybus {
             // Other I/O registers
             0xFF00..=0xFF7F => {
                 //println!("Read from unknown I/O address {:04X}", addr);
-                0
+                0xFF
             }
 
             // High RAM
