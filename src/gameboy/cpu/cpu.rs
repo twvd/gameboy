@@ -122,6 +122,18 @@ impl CPU {
         if service & INT_VBLANK == INT_VBLANK {
             return calli(0x40, INT_VBLANK);
         }
+        if service & INT_LCDSTAT == INT_LCDSTAT {
+            return calli(0x48, INT_LCDSTAT);
+        }
+        if service & INT_TIMER == INT_TIMER {
+            return calli(0x50, INT_TIMER);
+        }
+        if service & INT_SERIAL == INT_SERIAL {
+            return calli(0x58, INT_SERIAL);
+        }
+        if service & INT_JOYPAD == INT_JOYPAD {
+            return calli(0x60, INT_JOYPAD);
+        }
     }
 
     pub fn step(&mut self) -> Result<usize> {
@@ -2889,14 +2901,22 @@ mod tests {
     }
 
     #[test]
-    fn interrupt_vblank() {
-        let mut c = cpu(&[0x00]); // NOP
-        c.ime = true;
-        c.bus.write(0xFFFF, 1); // IE
-        c.bus.write(0xFF0F, 1); // IF
-        cpu_run(&mut c);
-        assert_eq!(c.regs.pc, 0x41);
-        assert!(!c.ime);
-        assert_eq!(c.bus.read(0xFF0F), 0);
+    fn interrupts() {
+        fn test_int(iflag: u8, addr: u16) {
+            let mut c = cpu(&[0x00]); // NOP
+            c.ime = true;
+            c.bus.write(0xFFFF, iflag); // IE
+            c.bus.write(0xFF0F, iflag); // IF
+            cpu_run(&mut c);
+            assert_eq!(c.regs.pc, addr + 1);
+            assert!(!c.ime);
+            assert_eq!(c.bus.read(0xFF0F), 0);
+        }
+
+        test_int(0x01, 0x40);
+        test_int(0x02, 0x48);
+        test_int(0x04, 0x50);
+        test_int(0x08, 0x58);
+        test_int(0x10, 0x60);
     }
 }
