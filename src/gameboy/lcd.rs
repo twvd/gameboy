@@ -98,7 +98,7 @@ impl LCDController {
             oam: [0; OAM_SIZE],
             vram: [0; VRAM_SIZE],
 
-            lcdc: 0,
+            lcdc: LCDC_ENABLE,
             lcds: 0,
             scy: 0,
             scx: 0,
@@ -286,10 +286,14 @@ impl LCDController {
         (palette >> (cidx * 2)) & 3
     }
 
-    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, palette: u8) {
+    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, palette: u8, is_obj: bool) {
         for tx in 0..TILE_W {
             for ty in 0..TILE_H {
-                let color = Self::palette_convert(Self::tile_decode(&tile, tx, ty), palette);
+                let color_idx = Self::tile_decode(&tile, tx, ty);
+                if is_obj && color_idx == 0 {
+                    continue;
+                }
+                let color = Self::palette_convert(color_idx, palette);
                 let disp_x = x + tx as isize;
                 let disp_y = y + ty as isize;
 
@@ -320,6 +324,7 @@ impl LCDController {
                         (x * TILE_W) as isize - self.scx as isize,
                         (y * TILE_H) as isize - self.scy as isize,
                         self.bgp,
+                        false,
                     );
                 }
             }
@@ -346,6 +351,7 @@ impl LCDController {
                     disp_x,
                     disp_y,
                     self.obp[((flags & 0x10) >> 4) as usize],
+                    true,
                 );
             }
         }
