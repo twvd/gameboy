@@ -15,8 +15,8 @@ const VRAM_SIZE: usize = 0x2000;
 //const OAM_ENTRIES: usize = 40;
 
 const TILE_BSIZE: usize = 16;
-const TILE_W: usize = 8;
-const TILE_H: usize = 8;
+const TILE_W: isize = 8;
+const TILE_H: isize = 8;
 
 // LCDC flags
 const LCDC_ENABLE: u8 = 1 << 7;
@@ -337,19 +337,31 @@ impl LCDController {
         (palette >> (cidx * 2)) & 3
     }
 
-    fn draw_tile_at(&mut self, tile: &[u8], x: isize, y: isize, palette: u8, is_obj: bool) {
-        for tx in 0..TILE_W {
-            for ty in 0..TILE_H {
-                let color_idx = Self::tile_decode(&tile, tx, ty);
+    fn draw_tile_at(
+        &mut self,
+        tile: &[u8],
+        x: isize,
+        y: isize,
+        palette: u8,
+        is_obj: bool,
+        scanline: isize,
+    ) {
+        for ty in 0..TILE_H {
+            let disp_y = y + ty as isize;
+
+            if disp_y != scanline {
+                continue;
+            }
+
+            for tx in 0..TILE_W {
+                let color_idx = Self::tile_decode(&tile, tx as usize, ty as usize);
                 if is_obj && color_idx == 0 {
                     continue;
                 }
                 let color = Self::palette_convert(color_idx, palette);
-                let disp_x = x + tx as isize;
-                let disp_y = y + ty as isize;
+                let disp_x = x + tx;
 
-                if disp_x < 0 || disp_y < 0 || disp_x >= LCD_W as isize || disp_y >= LCD_H as isize
-                {
+                if disp_x < 0 || disp_x >= LCD_W as isize {
                     continue;
                 }
                 self.output
@@ -358,42 +370,40 @@ impl LCDController {
         }
     }
 
-    pub fn redraw(&mut self) {
-        self.output.clear();
-
+    pub fn draw_scanline(&mut self, scanline: isize) {
         if self.lcdc & LCDC_ENABLE != LCDC_ENABLE {
             return;
         }
 
         // Background
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
-            for x in 0..32 {
-                for y in 0..32 {
-                    let tile = self.get_bgw_tile(x, y, LCDC_BG_TILEMAP).to_owned();
-                    self.draw_tile_at(
-                        &tile,
-                        (x * TILE_W) as isize - self.scx as isize,
-                        (y * TILE_H) as isize - self.scy as isize,
-                        self.bgp,
-                        false,
-                    );
-                }
+            let t_y = ((scanline + self.scy as isize) / TILE_H) as usize;
+            for t_x in 0..32 {
+                let tile = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
+                self.draw_tile_at(
+                    &tile,
+                    (t_x as isize * TILE_W) - self.scx as isize,
+                    (t_y as isize * TILE_H) - self.scy as isize,
+                    self.bgp,
+                    false,
+                    scanline,
+                );
             }
         }
 
         // The window
         if self.lcdc & LCDC_WINDOW_ENABLE == LCDC_WINDOW_ENABLE {
-            for x in 0..32 {
-                for y in 0..32 {
-                    let tile = self.get_bgw_tile(x, y, LCDC_WINDOW_TILEMAP).to_owned();
-                    self.draw_tile_at(
-                        &tile,
-                        (x * TILE_W) as isize - self.wx as isize - 7,
-                        (y * TILE_H) as isize - self.wy as isize,
-                        self.bgp,
-                        false,
-                    );
-                }
+            let t_y = ((scanline + self.wy as isize) / TILE_H) as usize;
+            for t_x in 0..32 {
+                let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
+                self.draw_tile_at(
+                    &tile,
+                    (t_x as isize * TILE_W) - self.wx as isize - 7,
+                    (t_y as isize * TILE_H) - self.wy as isize,
+                    self.bgp,
+                    false,
+                    scanline,
+                );
             }
         }
 
@@ -409,6 +419,10 @@ impl LCDController {
                     self.oam[(obj_idx * OAM_ENTRY_SIZE)..(obj_idx + 1) * OAM_ENTRY_SIZE].to_owned();
                 let (y, x, tile_idx, flags) = (entry[0], entry[1], entry[2], entry[3]);
                 let disp_y = y as isize - 16;
+                if !(disp_y <= scanline && disp_y + TILE_H > scanline) {
+                    continue;
+                }
+
                 let disp_x = x as isize - 8;
 
                 let sprite = self.get_sprite(tile_idx as usize).to_owned();
@@ -419,12 +433,10 @@ impl LCDController {
                     disp_y,
                     self.obp[((flags & 0x10) >> 4) as usize],
                     true,
+                    scanline,
                 );
             }
         }
-
-        self.output.render();
-        self.redraw_pending = false;
     }
 
     pub fn get_clr_intreq_stat(&mut self) -> bool {
@@ -445,6 +457,8 @@ impl Tickable for LCDController {
         let old_mode = self.get_stat_mode();
 
         // TODO this may skip interrupts on many ticks?
+        assert!(ticks < Self::SEARCH_PERIOD as usize);
+
         self.dots = (self.dots + ticks as u128) % (Self::DOTS_PER_LINE * Self::SCANLINES);
 
         let newly = self.calc_ly();
@@ -470,6 +484,10 @@ impl Tickable for LCDController {
                     self.intreq_stat = true;
                 }
             }
+
+            if !self.in_vblank() {
+                self.draw_scanline(newly as isize);
+            }
         }
 
         // Check HBlank STAT interrupt
@@ -490,10 +508,12 @@ impl Tickable for LCDController {
         self.lcds = (self.lcds & !LCDS_STATMODE_MASK) | self.get_stat_mode().to_u8().unwrap();
 
         if self.in_vblank() {
+            if self.redraw_pending {
+                self.redraw_pending = false;
+                self.output.render();
+            }
+        } else {
             self.redraw_pending = true;
-        } else if self.redraw_pending && self.ly >= 10 {
-            // Wait 10 lines to give the CPU some time
-            self.redraw();
         }
 
         Ok(ticks)
