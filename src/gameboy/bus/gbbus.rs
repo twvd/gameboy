@@ -26,9 +26,6 @@ pub struct Gameboybus {
     /// IF register
     intflags: u8,
 
-    /// In VBlank?
-    in_vblank: bool,
-
     /// Serial data buffer
     serialbuffer: u8,
 }
@@ -48,7 +45,6 @@ impl Gameboybus {
             lcd,
 
             intflags: 0,
-            in_vblank: false,
             serialbuffer: 0,
         };
 
@@ -61,15 +57,9 @@ impl Gameboybus {
     }
 
     fn update_intflags(&mut self) {
-        if self.lcd.in_vblank() {
-            if !self.in_vblank {
-                self.intflags = self.intflags | cpu::INT_VBLANK;
-                self.in_vblank = true;
-            }
-        } else {
-            self.in_vblank = false;
+        if self.lcd.get_clr_intreq_vblank() {
+            self.intflags |= cpu::INT_VBLANK;
         }
-
         if self.lcd.get_clr_intreq_stat() {
             self.intflags |= cpu::INT_LCDSTAT;
         }

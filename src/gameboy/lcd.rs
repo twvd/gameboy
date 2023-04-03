@@ -97,6 +97,9 @@ pub struct LCDController {
 
     /// STAT interrupt request
     intreq_stat: bool,
+
+    /// VBlank interrupt request
+    intreq_vblank: bool,
 }
 
 impl LCDController {
@@ -137,6 +140,7 @@ impl LCDController {
             dots: 0,
 
             intreq_stat: false,
+            intreq_vblank: false,
         }
     }
 
@@ -428,14 +432,27 @@ impl LCDController {
         self.intreq_stat = false;
         b
     }
+
+    pub fn get_clr_intreq_vblank(&mut self) -> bool {
+        let b = self.intreq_vblank;
+        self.intreq_vblank = false;
+        b
+    }
 }
 
 impl Tickable for LCDController {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
+        // TODO this may skip interrupts on many ticks?
         self.dots = (self.dots + ticks as u128) % (Self::DOTS_PER_LINE * Self::SCANLINES);
+
         let newly = self.calc_ly();
+        let old_mode = self.get_stat_mode();
+
         if newly != self.ly {
             self.ly = newly;
+            let new_mode = self.get_stat_mode();
+
+            // Check LY compare + interrupt
             if self.ly == self.lyc {
                 self.lcds |= LCDS_LYC;
                 if self.lcds & LCDS_INT_LYC == LCDS_INT_LYC {
@@ -444,8 +461,17 @@ impl Tickable for LCDController {
             } else {
                 self.lcds &= !LCDS_LYC;
             }
+
+            // Check VBlank / VBlank STAT interrupts
+            if old_mode != LCDStatMode::VBlank && new_mode == LCDStatMode::VBlank {
+                self.intreq_vblank = true;
+                if self.lcds & LCDS_INT_STAT_VBLANK == LCDS_INT_STAT_VBLANK {
+                    self.intreq_stat = true;
+                }
+            }
         }
 
+        // Update mode register
         self.lcds = (self.lcds & !LCDS_STATMODE_MASK) | self.get_stat_mode().to_u8().unwrap();
 
         if self.in_vblank() {
@@ -518,5 +544,40 @@ mod tests {
         c.tick(1).unwrap();
         assert!(c.read_io(0xFF41) & LCDS_LYC == LCDS_LYC);
         assert!(!c.get_clr_intreq_stat());
+    }
+
+    #[test]
+    fn int_stat_vblank() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        c.write_io(0xFF41, LCDS_INT_STAT_VBLANK);
+
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_stat());
+
+        while !c.in_vblank() {
+            c.tick(1).unwrap();
+        }
+        assert!(c.get_clr_intreq_stat());
+        assert!(!c.get_clr_intreq_stat());
+
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_stat());
+    }
+
+    #[test]
+    fn int_vblank() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_vblank());
+
+        while !c.in_vblank() {
+            c.tick(1).unwrap();
+        }
+        assert!(c.get_clr_intreq_vblank());
+        assert!(!c.get_clr_intreq_vblank());
+
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_vblank());
     }
 }
