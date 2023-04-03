@@ -20,8 +20,10 @@ const TILE_H: usize = 8;
 
 // LCDC flags
 const LCDC_ENABLE: u8 = 1 << 7;
+const LCDC_WINDOW_TILEMAP: u8 = 1 << 6;
+const LCDC_WINDOW_ENABLE: u8 = 1 << 5;
 const LCDC_BGW_TILEDATA: u8 = 1 << 4;
-const LCDC_BGW_TILEMAP: u8 = 1 << 3;
+const LCDC_BG_TILEMAP: u8 = 1 << 3;
 const LCDC_OBJ_SIZE: u8 = 1 << 2;
 const LCDC_OBJ_ENABLE: u8 = 1 << 1;
 const LCDC_BGW_ENABLE: u8 = 1 << 0;
@@ -59,6 +61,12 @@ pub struct LCDController {
 
     /// SCX - Scroll X register
     scx: u8,
+
+    /// WX - Window X register
+    wx: u8,
+
+    /// WY - Window Y register
+    wy: u8,
 
     /// Current scanline
     ly: u8,
@@ -102,6 +110,8 @@ impl LCDController {
             lcds: 0,
             scy: 0,
             scx: 0,
+            wx: 0,
+            wy: 0,
             ly: 0,
             bgp: 0,
             obp: [0, 0],
@@ -146,10 +156,11 @@ impl LCDController {
     }
 
     #[inline(always)]
-    fn get_bg_tile_id(&self, tm_x: usize, tm_y: usize) -> u8 {
+    fn get_tile_id(&self, tm_x: usize, tm_y: usize, selbit: u8) -> u8 {
         // VRAM offset = 8000 - 9FFF
-        // BG tile map at 9800 - 9BFF and 9C00 - 9FFF
-        let offset = if self.lcdc & LCDC_BGW_TILEMAP == LCDC_BGW_TILEMAP {
+        // BG tile map at 9800 - 9BFF or 9C00 - 9FFF
+        // Window tile map at 9800 - 9BFF or 9C00 - 9FFF
+        let offset = if self.lcdc & selbit == selbit {
             0x9C00
         } else {
             0x9800
@@ -159,11 +170,11 @@ impl LCDController {
     }
 
     #[inline(always)]
-    fn get_bg_tile(&self, tm_x: usize, tm_y: usize) -> &[u8] {
+    fn get_bgw_tile(&self, tm_x: usize, tm_y: usize, selbit: u8) -> &[u8] {
         // VRAM offset = 8000 - 9FFF
-        // BG tile data at 8800 - 97FF and 8000 - 8FFF
-        // BG tiles always 8 x 8 pixels
-        let tile_id = self.get_bg_tile_id(tm_x, tm_y) as usize;
+        // BG/Win tile data at 8800 - 97FF and 8000 - 8FFF
+        // BG/Win tiles always 8 x 8 pixels
+        let tile_id = self.get_tile_id(tm_x, tm_y, selbit) as usize;
         let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
             // 0x8000 base offset, contiguous blocks
             0x8000 + tile_id * TILE_BSIZE
@@ -225,6 +236,12 @@ impl LCDController {
             // BGP - Background and window palette
             0xFF47 => self.bgp = val,
 
+            // WY - Window Y register
+            0xFF4A => self.wy = val,
+
+            // WX - Window X register
+            0xFF4B => self.wx = val,
+
             // OBPx - Object Palette
             0xFF48 => self.obp[0] = val,
             0xFF49 => self.obp[1] = val,
@@ -246,6 +263,12 @@ impl LCDController {
 
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx,
+
+            // WY - Window Y register
+            0xFF4A => self.wy,
+
+            // WX - Window X register
+            0xFF4B => self.wx,
 
             // OAM DMA start
             0xFF46 => 0,
@@ -318,11 +341,27 @@ impl LCDController {
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
             for x in 0..32 {
                 for y in 0..32 {
-                    let tile = self.get_bg_tile(x, y).to_owned();
+                    let tile = self.get_bgw_tile(x, y, LCDC_BG_TILEMAP).to_owned();
                     self.draw_tile_at(
                         &tile,
                         (x * TILE_W) as isize - self.scx as isize,
                         (y * TILE_H) as isize - self.scy as isize,
+                        self.bgp,
+                        false,
+                    );
+                }
+            }
+        }
+
+        // The window
+        if self.lcdc & LCDC_WINDOW_ENABLE == LCDC_WINDOW_ENABLE {
+            for x in 0..32 {
+                for y in 0..32 {
+                    let tile = self.get_bgw_tile(x, y, LCDC_WINDOW_TILEMAP).to_owned();
+                    self.draw_tile_at(
+                        &tile,
+                        (x * TILE_W) as isize - self.wx as isize - 7,
+                        (y * TILE_H) as isize - self.wy as isize,
                         self.bgp,
                         false,
                     );
