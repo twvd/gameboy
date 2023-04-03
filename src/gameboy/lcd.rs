@@ -31,6 +31,15 @@ const LCDC_BGW_ENABLE: u8 = 1 << 0;
 // Writable LCDS bits
 const LCDS_MASK: u8 = 0x78;
 
+const LCDS_STATMODE_MASK: u8 = 0x03;
+
+// LCDS bits
+const LCDS_INT_LYC: u8 = 1 << 6;
+const LCDS_INT_STAT_OAM: u8 = 1 << 5;
+const LCDS_INT_STAT_VBLANK: u8 = 1 << 4;
+const LCDS_INT_STAT_HBLANK: u8 = 1 << 3;
+const LCDS_LYC: u8 = 1 << 2;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
 enum LCDStatMode {
     Search = 2,
@@ -71,6 +80,9 @@ pub struct LCDController {
     /// Current scanline
     ly: u8,
 
+    /// LY compare register
+    lyc: u8,
+
     /// Background/window palette
     bgp: u8,
 
@@ -82,6 +94,9 @@ pub struct LCDController {
 
     /// Dot refresh position
     dots: u128,
+
+    /// STAT interrupt request
+    intreq_stat: bool,
 }
 
 impl LCDController {
@@ -113,12 +128,15 @@ impl LCDController {
             wx: 0,
             wy: 0,
             ly: 0,
+            lyc: 0,
             bgp: 0,
             obp: [0, 0],
 
             redraw_pending: false,
 
             dots: 0,
+
+            intreq_stat: false,
         }
     }
 
@@ -223,7 +241,7 @@ impl LCDController {
             0xFF40 => self.lcdc = val,
 
             // LCDS - LCD status register
-            0xFF41 => self.lcds = val & LCDS_MASK,
+            0xFF41 => self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK),
 
             // SCY - Background scrolling viewport Y
             0xFF42 => {
@@ -232,6 +250,9 @@ impl LCDController {
 
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
+
+            // LYC - LY compare
+            0xFF45 => self.lyc = val,
 
             // BGP - Background and window palette
             0xFF47 => self.bgp = val,
@@ -256,7 +277,7 @@ impl LCDController {
             0xFF40 => self.lcdc,
 
             // LCDS - LCD status register
-            0xFF41 => (self.lcds & LCDS_MASK) | self.get_stat_mode().to_u8().unwrap(),
+            0xFF41 => self.lcds,
 
             // SCY - Background scrolling viewport Y
             0xFF42 => self.scy,
@@ -264,17 +285,14 @@ impl LCDController {
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx,
 
-            // WY - Window Y register
-            0xFF4A => self.wy,
+            // LY - LCD update Y position
+            0xFF44 => self.ly,
 
-            // WX - Window X register
-            0xFF4B => self.wx,
+            // LYC - LY compare
+            0xFF45 => self.lyc,
 
             // OAM DMA start
             0xFF46 => 0,
-
-            // LY - LCD update Y position
-            0xFF44 => self.ly,
 
             // BGP - Bsckground and window palette
             0xFF47 => self.bgp,
@@ -282,6 +300,12 @@ impl LCDController {
             // OBPx - Object palette
             0xFF48 => self.obp[0],
             0xFF49 => self.obp[1],
+
+            // WY - Window Y register
+            0xFF4A => self.wy,
+
+            // WX - Window X register
+            0xFF4B => self.wx,
 
             _ => {
                 //println!("Read from unknown LCD address: {:04X}", addr);
@@ -398,12 +422,31 @@ impl LCDController {
         self.output.render();
         self.redraw_pending = false;
     }
+
+    pub fn get_clr_intreq_stat(&mut self) -> bool {
+        let b = self.intreq_stat;
+        self.intreq_stat = false;
+        b
+    }
 }
 
 impl Tickable for LCDController {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         self.dots = (self.dots + ticks as u128) % (Self::DOTS_PER_LINE * Self::SCANLINES);
-        self.ly = self.calc_ly();
+        let newly = self.calc_ly();
+        if newly != self.ly {
+            self.ly = newly;
+            if self.ly == self.lyc {
+                self.lcds |= LCDS_LYC;
+                if self.lcds & LCDS_INT_LYC == LCDS_INT_LYC {
+                    self.intreq_stat = true;
+                }
+            } else {
+                self.lcds &= !LCDS_LYC;
+            }
+        }
+
+        self.lcds = (self.lcds & !LCDS_STATMODE_MASK) | self.get_stat_mode().to_u8().unwrap();
 
         if self.in_vblank() {
             self.redraw_pending = true;
@@ -453,5 +496,27 @@ mod tests {
             next(&mut c);
         }
         assert_eq!(c.get_stat_mode(), LCDStatMode::VBlank);
+    }
+
+    #[test]
+    fn int_stat_lyc() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        c.write_io(0xFF45, 10);
+        c.write_io(0xFF41, LCDS_INT_LYC);
+
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_stat());
+        assert!(c.read_io(0xFF41) & LCDS_LYC != LCDS_LYC);
+
+        while c.ly != 10 {
+            c.tick(1).unwrap();
+        }
+        assert!(c.read_io(0xFF41) & LCDS_LYC == LCDS_LYC);
+        assert!(c.get_clr_intreq_stat());
+        assert!(!c.get_clr_intreq_stat());
+
+        c.tick(1).unwrap();
+        assert!(c.read_io(0xFF41) & LCDS_LYC == LCDS_LYC);
+        assert!(!c.get_clr_intreq_stat());
     }
 }

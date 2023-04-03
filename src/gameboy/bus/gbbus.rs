@@ -69,6 +69,10 @@ impl Gameboybus {
         } else {
             self.in_vblank = false;
         }
+
+        if self.lcd.get_clr_intreq_stat() {
+            self.intflags |= cpu::INT_LCDSTAT;
+        }
     }
 }
 
