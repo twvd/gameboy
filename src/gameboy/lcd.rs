@@ -489,10 +489,6 @@ impl Tickable for LCDController {
                     self.intreq_stat = true;
                 }
             }
-
-            if !self.in_vblank() {
-                self.draw_scanline(newly as isize);
-            }
         }
 
         // Check HBlank STAT interrupt
@@ -507,6 +503,11 @@ impl Tickable for LCDController {
             if self.lcds & LCDS_INT_STAT_OAM == LCDS_INT_STAT_OAM {
                 self.intreq_stat = true;
             }
+        }
+
+        // Draw when in transfer mode
+        if old_mode != LCDStatMode::Transfer && new_mode == LCDStatMode::Transfer && !self.in_vblank() {
+            self.draw_scanline(self.ly as isize);
         }
 
         // Update mode register
