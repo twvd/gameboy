@@ -100,7 +100,7 @@ impl CPU {
     }
 
     fn service_interrupts(&mut self) {
-        if !self.ime {
+        if !self.ime && !self.halted {
             return;
         }
 
@@ -113,10 +113,12 @@ impl CPU {
             self.cycles += 2;
             self.halted = false;
 
-            self.bus.write(Self::BUS_IF, intf & !flag);
-            self.stack_push(self.regs.pc);
-            self.ime = false;
-            self.regs.pc = addr;
+            if self.ime {
+                self.bus.write(Self::BUS_IF, intf & !flag);
+                self.stack_push(self.regs.pc);
+                self.ime = false;
+                self.regs.pc = addr;
+            }
         };
 
         if service & INT_VBLANK == INT_VBLANK {
