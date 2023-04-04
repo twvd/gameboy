@@ -20,7 +20,8 @@ use gbrust::tickable::Tickable;
 
 #[derive(Parser)]
 #[command(
-    about = "A crude ROM debugger for development purposes",
+    about = "Gameboy Emulator",
+    author = "Thomas <thomas@thomasw.dev>",
     long_about = None)]
 struct Args {
     /// ROM filename to load.
@@ -42,9 +43,9 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Enable display
-    #[arg(short, long)]
-    display: bool,
+    /// Disable display
+    #[arg(long)]
+    no_display: bool,
 
     /// Framerate limit
     #[arg(long, default_value = "80")]
@@ -56,7 +57,7 @@ fn main() -> Result<()> {
 
     let rom = fs::read(args.filename)?;
 
-    let display: Box<dyn Display> = if args.display {
+    let display: Box<dyn Display> = if !args.no_display {
         Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps))
     } else {
         Box::new(NullDisplay::new())
