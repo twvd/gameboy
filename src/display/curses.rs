@@ -14,6 +14,7 @@ pub struct CursesDisplay {
     height: usize,
     buffer: Vec<Vec<u8>>,
     window: pancurses::Window,
+    updates: usize,
 }
 
 /// Flag to mark a pixel for redrawing
@@ -32,13 +33,14 @@ impl CursesDisplay {
         for _ in 0..height {
             let mut vline = Vec::<u8>::with_capacity(width);
             for _ in 0..width {
-                vline.push(0);
+                vline.push(0 | DISP_DIRTY);
             }
             vs.push(vline);
         }
 
         let mut win = pancurses::initscr();
         win.resize(height as i32 / 2, width as i32);
+        pancurses::curs_set(0);
 
         pancurses::start_color();
 
@@ -54,13 +56,14 @@ impl CursesDisplay {
             height,
             buffer: vs,
             window: win,
+            updates: 0,
         }
     }
 
-    fn render_partial(&mut self) {
+    fn render_partial(&mut self, full: bool) {
         for y in (0..self.height).step_by(2) {
             for x in 0..self.width {
-                if (self.buffer[y][x] | self.buffer[y + 1][x]) & DISP_DIRTY == DISP_DIRTY {
+                if (self.buffer[y][x] | self.buffer[y + 1][x]) & DISP_DIRTY == DISP_DIRTY || full {
                     let y1: u32 = self.buffer[y][x] as u32 & 3;
                     let y2: u32 = self.buffer[y + 1][x] as u32 & 3;
                     let colors: u32 = (y2 << 4) | y1;
@@ -77,7 +80,6 @@ impl CursesDisplay {
 
                     self.window.attron(COLOR_PAIR(colors));
                     self.window.mvaddstr(y as i32 / 2, x as i32, ch);
-                    self.window.delch();
                     self.window.attroff(COLOR_PAIR(colors));
 
                     self.buffer[y][x] &= !DISP_DIRTY;
@@ -94,12 +96,16 @@ impl Display for CursesDisplay {
         assert!(x < self.width);
         assert!(y < self.height);
 
-        self.buffer[y][x] = DISP_DIRTY | color;
+        if self.buffer[y][x] & !DISP_DIRTY != color {
+            self.buffer[y][x] = DISP_DIRTY | color;
+        }
     }
 
     fn clear(&mut self) {}
 
     fn render(&mut self) {
-        self.render_partial();
+        // Full redraw every 60 frames
+        self.render_partial(self.updates == 0);
+        self.updates = (self.updates + 1) % 60;
     }
 }
