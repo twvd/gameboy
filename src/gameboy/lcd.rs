@@ -14,9 +14,14 @@ const VRAM_SIZE: usize = 0x2000;
 
 //const OAM_ENTRIES: usize = 40;
 
+// Tile sizes
 const TILE_BSIZE: usize = 16;
 const TILE_W: isize = 8;
 const TILE_H: isize = 8;
+
+// Backgtound/window size (in tiles)
+const BGW_H: isize = 32;
+const BGW_W: isize = 32;
 
 // LCDC flags
 const LCDC_ENABLE: u8 = 1 << 7;
@@ -178,21 +183,21 @@ impl LCDController {
     }
 
     #[inline(always)]
-    fn get_tile_id(&self, tm_x: usize, tm_y: usize, selbit: u8) -> u8 {
+    fn get_tile_id(&self, tm_x: isize, tm_y: isize, selbit: u8) -> u8 {
         // VRAM offset = 8000 - 9FFF
         // BG tile map at 9800 - 9BFF or 9C00 - 9FFF
         // Window tile map at 9800 - 9BFF or 9C00 - 9FFF
-        let offset = if self.lcdc & selbit == selbit {
+        let offset: isize = if self.lcdc & selbit == selbit {
             0x9C00
         } else {
             0x9800
         };
 
-        self.vram[offset - 0x8000 + (tm_y * 32) + tm_x]
+        self.vram[(offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
     }
 
     #[inline(always)]
-    fn get_bgw_tile(&self, tm_x: usize, tm_y: usize, selbit: u8) -> &[u8] {
+    fn get_bgw_tile(&self, tm_x: isize, tm_y: isize, selbit: u8) -> &[u8] {
         // VRAM offset = 8000 - 9FFF
         // BG/Win tile data at 8800 - 97FF and 8000 - 8FFF
         // BG/Win tiles always 8 x 8 pixels
@@ -210,7 +215,7 @@ impl LCDController {
         };
 
         // Correct for our VRAM array
-        let tile_addr = tile_addr - 0x8000;
+        let tile_addr = (tile_addr - 0x8000) as usize;
 
         &self.vram[tile_addr..tile_addr + TILE_BSIZE]
     }
@@ -377,13 +382,13 @@ impl LCDController {
 
         // Background
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
-            let t_y = ((scanline + self.scy as isize) / TILE_H) as usize;
-            for t_x in 0..32 {
+            let t_y = (scanline + self.scy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
+            for t_x in 0..BGW_W {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
-                    (t_x as isize * TILE_W) - self.scx as isize,
-                    (t_y as isize * TILE_H) - self.scy as isize,
+                    ((t_x as isize * TILE_W) - self.scx as isize).rem_euclid(BGW_W * TILE_W),
+                    ((t_y as isize * TILE_H) - self.scy as isize).rem_euclid(BGW_H * TILE_H),
                     self.bgp,
                     false,
                     scanline,
@@ -393,8 +398,8 @@ impl LCDController {
 
         // The window
         if self.lcdc & LCDC_WINDOW_ENABLE == LCDC_WINDOW_ENABLE {
-            let t_y = ((scanline + self.wy as isize) / TILE_H) as usize;
-            for t_x in 0..32 {
+            let t_y = (scanline + self.wy as isize) / TILE_H;
+            for t_x in 0..BGW_W {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
