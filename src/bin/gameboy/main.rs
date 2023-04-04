@@ -50,6 +50,10 @@ struct Args {
     /// Framerate limit
     #[arg(long, default_value = "80")]
     fps: u64,
+
+    /// Output serial output to terminal
+    #[arg(short, long)]
+    serial_out: bool,
 }
 
 fn main() -> Result<()> {
@@ -70,12 +74,17 @@ fn main() -> Result<()> {
         let cartridge = cartridge::load(&rom);
         println!("Cartridge loaded");
         println!("{}", cartridge);
-        if let Some(ref brfile) = args.bootrom {
+        let mut b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
             Box::new(Gameboybus::new(cartridge, Some(bootrom.as_slice()), lcd))
         } else {
             Box::new(Gameboybus::new(cartridge, None, lcd))
+        };
+        if args.serial_out {
+            b.enable_serial_output();
         }
+
+        b
     };
 
     if args.testbus {
@@ -105,9 +114,12 @@ fn main() -> Result<()> {
     loop {
         if args.verbose && cpu.bus.read(0xFF50) == 1 {
             let state = format!(
-                "Cycle: {}\n{}\n --> {}\n",
+                "Cycle: {}\n{}\nIME: {} IE: {} IF:{}\n --> {}\n",
                 cpu.get_cycles(),
                 cpu.regs,
+                if cpu.ime { "ON" } else { "off" },
+                cpu.bus.read(0xFFFF),
+                cpu.bus.read(0xFF0F),
                 cpu.peek_next_instr()?
             );
 

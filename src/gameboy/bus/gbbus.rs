@@ -1,6 +1,7 @@
 use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
 use super::super::lcd::LCDController;
+use super::super::timer::Timer;
 use super::bus::Bus;
 use crate::tickable::Tickable;
 
@@ -22,12 +23,16 @@ pub struct Gameboybus {
     ie: u8,
 
     lcd: LCDController,
+    timer: Timer,
 
     /// IF register
     intflags: u8,
 
     /// Serial data buffer
     serialbuffer: u8,
+
+    /// Output serial data to terminal
+    serial_output: bool,
 }
 
 impl Gameboybus {
@@ -43,9 +48,11 @@ impl Gameboybus {
             ie: 0,
 
             lcd,
+            timer: Timer::new(),
 
             intflags: 0,
             serialbuffer: 0,
+            serial_output: false,
         };
 
         if let Some(br) = bootrom {
@@ -56,12 +63,19 @@ impl Gameboybus {
         bus
     }
 
+    pub fn enable_serial_output(&mut self) {
+        self.serial_output = true;
+    }
+
     fn update_intflags(&mut self) {
         if self.lcd.get_clr_intreq_vblank() {
             self.intflags |= cpu::INT_VBLANK;
         }
         if self.lcd.get_clr_intreq_stat() {
             self.intflags |= cpu::INT_LCDSTAT;
+        }
+        if self.timer.get_clr_intreq() {
+            self.intflags |= cpu::INT_TIMER;
         }
     }
 }
@@ -108,6 +122,9 @@ impl Bus for Gameboybus {
 
             // I/O - Serial transfer control
             0xFF02 => 0,
+
+            // I/O - Timer
+            0xFF04..=0xFF07 => self.timer.read(addr as u16),
 
             // IF - interrupt flags
             0xFF0F => self.intflags,
@@ -177,11 +194,14 @@ impl Bus for Gameboybus {
 
             // I/O - Serial transfer control
             0xFF02 => {
-                if val == 0x81 {
+                if val == 0x81 && self.serial_output {
                     print!("{}", self.serialbuffer as char);
                     io::stdout().flush().unwrap_or_default();
                 }
             }
+
+            // Timer
+            0xFF04..=0xFF07 => self.timer.write(addr as u16, val),
 
             // IF - Interrupt Flags
             0xFF0F => self.intflags = val,
@@ -225,6 +245,7 @@ impl Bus for Gameboybus {
 impl Tickable for Gameboybus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         self.lcd.tick(ticks)?;
+        self.timer.tick(ticks)?;
         self.update_intflags();
 
         Ok(ticks)

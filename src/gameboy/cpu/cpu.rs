@@ -7,6 +7,9 @@ use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
 use crate::tickable::Tickable;
 
+/// CPU clock frequency (in Hz)
+pub const CPU_CLOCK_HZ: usize = 4194304;
+
 // Interrupt flags
 pub const INT_VBLANK: u8 = 1 << 0;
 pub const INT_LCDSTAT: u8 = 1 << 1;
@@ -71,7 +74,7 @@ pub struct CPU {
     cycles: usize,
 
     /// Interrupt Master Enable
-    ime: bool,
+    pub ime: bool,
 
     /// HALT instruction pauses CPU
     halted: bool,

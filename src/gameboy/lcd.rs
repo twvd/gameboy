@@ -506,7 +506,10 @@ impl Tickable for LCDController {
         }
 
         // Draw when in transfer mode
-        if old_mode != LCDStatMode::Transfer && new_mode == LCDStatMode::Transfer && !self.in_vblank() {
+        if old_mode != LCDStatMode::Transfer
+            && new_mode == LCDStatMode::Transfer
+            && !self.in_vblank()
+        {
             self.draw_scanline(self.ly as isize);
         }
 
@@ -568,7 +571,7 @@ mod tests {
     #[test]
     fn vblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()));
-        for i in 0..(LCD_H * LCDController::DOTS_PER_LINE as usize) {
+        for _ in 0..(LCD_H * LCDController::DOTS_PER_LINE as usize) {
             assert!(!c.in_vblank());
             c.tick(1).unwrap();
         }
