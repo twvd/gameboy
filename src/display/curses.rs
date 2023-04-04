@@ -1,3 +1,6 @@
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+
 use super::display::Display;
 
 use itertools::Itertools;
@@ -15,6 +18,8 @@ pub struct CursesDisplay {
     buffer: Vec<Vec<u8>>,
     window: pancurses::Window,
     updates: usize,
+    last_frame: Instant,
+    frametime: u64,
 }
 
 /// Flag to mark a pixel for redrawing
@@ -28,7 +33,7 @@ const COLORS: [i16; 4] = [
 ];
 
 impl CursesDisplay {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, fps: u64) -> Self {
         let mut vs: Vec<Vec<u8>> = Vec::with_capacity(height);
         for _ in 0..height {
             let mut vline = Vec::<u8>::with_capacity(width);
@@ -57,6 +62,8 @@ impl CursesDisplay {
             buffer: vs,
             window: win,
             updates: 0,
+            last_frame: Instant::now(),
+            frametime: (1000000 / fps),
         }
     }
 
@@ -107,5 +114,12 @@ impl Display for CursesDisplay {
         // Full redraw every 60 frames
         self.render_partial(self.updates == 0);
         self.updates = (self.updates + 1) % 60;
+
+        // Limit the framerate
+        let framelen = self.last_frame.elapsed().as_micros() as u64;
+        if framelen < self.frametime {
+            sleep(Duration::from_micros(self.frametime - framelen));
+        }
+        self.last_frame = Instant::now();
     }
 }

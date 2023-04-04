@@ -45,6 +45,10 @@ struct Args {
     /// Enable display
     #[arg(short, long)]
     display: bool,
+
+    /// Framerate limit
+    #[arg(long, default_value = "80")]
+    fps: u64,
 }
 
 fn main() -> Result<()> {
@@ -53,7 +57,7 @@ fn main() -> Result<()> {
     let rom = fs::read(args.filename)?;
 
     let display: Box<dyn Display> = if args.display {
-        Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H))
+        Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps))
     } else {
         Box::new(NullDisplay::new())
     };
