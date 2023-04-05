@@ -2,6 +2,7 @@ use crate::gameboy::bus::bus::Bus;
 use crate::tickable::Tickable;
 
 use super::mbc1::Mbc1;
+use super::mbc3::Mbc3;
 use super::romonly::RomOnly;
 
 use anyhow::Result;
@@ -20,6 +21,9 @@ pub enum CartridgeType {
     Mbc1 = 0x01,
     Mbc1Ram = 0x02,
     Mbc1RamBat = 0x03,
+    Mbc3 = 0x11,
+    Mbc3Ram = 0x12,
+    Mbc3RamBat = 0x13,
 }
 
 pub trait Cartridge: Bus + Tickable {
@@ -66,6 +70,9 @@ pub fn load(rom: &[u8]) -> Box<dyn Cartridge> {
         Some(CartridgeType::Mbc1) => Box::new(Mbc1::new(rom)),
         Some(CartridgeType::Mbc1Ram) => Box::new(Mbc1::new(rom)),
         Some(CartridgeType::Mbc1RamBat) => Box::new(Mbc1::new(rom)),
+        Some(CartridgeType::Mbc3) => Box::new(Mbc3::new(rom)),
+        Some(CartridgeType::Mbc3Ram) => Box::new(Mbc3::new(rom)),
+        Some(CartridgeType::Mbc3RamBat) => Box::new(Mbc3::new(rom)),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }
 }
