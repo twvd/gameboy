@@ -253,9 +253,7 @@ impl LCDController {
             0xFF41 => self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK),
 
             // SCY - Background scrolling viewport Y
-            0xFF42 => {
-                self.scy = val;
-            }
+            0xFF42 => self.scy = val,
 
             // SCX - Background scrolling viewport X
             0xFF43 => self.scx = val,
@@ -276,7 +274,7 @@ impl LCDController {
             0xFF48 => self.obp[0] = val,
             0xFF49 => self.obp[1] = val,
 
-            _ => (), //println!("Write to unknown LCD address: {:04X} = {:02X}", addr, val),
+            _ => (),
         }
     }
 
@@ -300,9 +298,6 @@ impl LCDController {
             // LYC - LY compare
             0xFF45 => self.lyc,
 
-            // OAM DMA start
-            0xFF46 => 0,
-
             // BGP - Bsckground and window palette
             0xFF47 => self.bgp,
 
@@ -316,10 +311,7 @@ impl LCDController {
             // WX - Window X register
             0xFF4B => self.wx,
 
-            _ => {
-                //println!("Read from unknown LCD address: {:04X}", addr);
-                0
-            }
+            _ => 0,
         }
     }
 
@@ -350,9 +342,15 @@ impl LCDController {
         palette: u8,
         is_obj: bool,
         scanline: isize,
+        wrap_x: Option<isize>,
+        wrap_y: Option<isize>,
     ) {
         for ty in 0..TILE_H {
-            let disp_y = y + ty as isize;
+            let disp_y = if let Some(wy) = wrap_y {
+                (y + ty).rem_euclid(wy)
+            } else {
+                y + ty
+            };
 
             if disp_y != scanline {
                 continue;
@@ -364,7 +362,11 @@ impl LCDController {
                     continue;
                 }
                 let color = Self::palette_convert(color_idx, palette);
-                let disp_x = x + tx;
+                let disp_x = if let Some(wx) = wrap_x {
+                    (x + tx).rem_euclid(wx)
+                } else {
+                    x + tx
+                };
 
                 if disp_x < 0 || disp_x >= LCD_W as isize {
                     continue;
@@ -387,11 +389,13 @@ impl LCDController {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
-                    ((t_x as isize * TILE_W) - self.scx as isize).rem_euclid(BGW_W * TILE_W),
-                    ((t_y as isize * TILE_H) - self.scy as isize).rem_euclid(BGW_H * TILE_H),
+                    (t_x as isize * TILE_W) - self.scx as isize,
+                    (t_y as isize * TILE_H) - self.scy as isize,
                     self.bgp,
                     false,
                     scanline,
+                    Some(BGW_W * TILE_W),
+                    Some(BGW_H * TILE_H),
                 );
             }
         }
@@ -410,6 +414,8 @@ impl LCDController {
                     self.bgp,
                     false,
                     scanline,
+                    None,
+                    None,
                 );
             }
         }
@@ -445,6 +451,8 @@ impl LCDController {
                     self.obp[((flags & 0x10) >> 4) as usize],
                     true,
                     scanline,
+                    None,
+                    None,
                 );
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
                     // 8x16
@@ -456,6 +464,8 @@ impl LCDController {
                         self.obp[((flags & 0x10) >> 4) as usize],
                         true,
                         scanline,
+                        None,
+                        None,
                     );
                 }
             }
