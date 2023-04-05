@@ -414,18 +414,22 @@ impl LCDController {
 
         // Object sprites
         if self.lcdc & LCDC_OBJ_ENABLE == LCDC_OBJ_ENABLE {
-            if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
-                // 16px wide sprites
-                todo!();
-            }
-
             for obj_idx in 0..(OAM_SIZE / OAM_ENTRY_SIZE) {
                 let entry =
                     self.oam[(obj_idx * OAM_ENTRY_SIZE)..(obj_idx + 1) * OAM_ENTRY_SIZE].to_owned();
-                let (y, x, tile_idx, flags) = (entry[0], entry[1], entry[2], entry[3]);
+                let (y, x, mut tile_idx, flags) = (entry[0], entry[1], entry[2], entry[3]);
                 let disp_y = y as isize - 16;
-                if !(disp_y <= scanline && disp_y + TILE_H > scanline) {
-                    continue;
+                if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
+                    // 8x16
+                    if !(disp_y <= scanline && disp_y + (TILE_H * 2) > scanline) {
+                        continue;
+                    }
+                    tile_idx &= !0x01;
+                } else {
+                    // 8x8
+                    if !(disp_y <= scanline && disp_y + TILE_H > scanline) {
+                        continue;
+                    }
                 }
 
                 let disp_x = x as isize - 8;
@@ -440,6 +444,18 @@ impl LCDController {
                     true,
                     scanline,
                 );
+                if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
+                    // 8x16
+                    let sprite2 = self.get_sprite((tile_idx | 1) as usize).to_owned();
+                    self.draw_tile_at(
+                        &sprite2,
+                        disp_x,
+                        disp_y + TILE_H,
+                        self.obp[((flags & 0x10) >> 4) as usize],
+                        true,
+                        scanline,
+                    );
+                }
             }
         }
     }
