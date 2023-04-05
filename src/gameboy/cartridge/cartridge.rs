@@ -64,6 +64,8 @@ pub fn load(rom: &[u8]) -> Box<dyn Cartridge> {
     match CartridgeType::from_u8(rom[CARTTYPE_OFFSET]) {
         Some(CartridgeType::Rom) => Box::new(RomOnly::new(rom)),
         Some(CartridgeType::Mbc1) => Box::new(Mbc1::new(rom)),
+        Some(CartridgeType::Mbc1Ram) => Box::new(Mbc1::new(rom)),
+        Some(CartridgeType::Mbc1RamBat) => Box::new(Mbc1::new(rom)),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }
 }

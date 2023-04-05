@@ -47,7 +47,7 @@ impl Bus for Mbc1 {
     fn write(&mut self, addr: u16, val: u8) {
         match addr {
             // RAM enable
-            0x0000..=0x1FFF => todo!(),
+            0x0000..=0x1FFF => (),
             // ROM bank select
             0x2000..=0x3FFF => self.banksel = cmp::max(val, 1) & BANKS_MAX as u8,
             // RAM/upper ROM bank select
