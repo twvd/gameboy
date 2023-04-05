@@ -397,7 +397,9 @@ impl LCDController {
         }
 
         // The window
-        if self.lcdc & LCDC_WINDOW_ENABLE == LCDC_WINDOW_ENABLE {
+        if self.lcdc & (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
+            == (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
+        {
             let t_y = (scanline + self.wy as isize) / TILE_H;
             for t_x in 0..BGW_W {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
