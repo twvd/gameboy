@@ -329,6 +329,10 @@ impl LCDController {
         self.vram[addr]
     }
 
+    pub fn read_oam(&self, addr: usize) -> u8 {
+        self.oam[addr]
+    }
+
     /// Converts a color index to a color from the
     /// BG/OBJ palettes
     /// (DMG-mode only)

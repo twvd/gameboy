@@ -17,7 +17,6 @@ pub struct Gameboybus {
 
     boot_rom_enabled: bool,
 
-    ext_ram: [u8; u16::MAX as usize + 1],
     wram: [u8; u16::MAX as usize + 1],
     hram: [u8; u16::MAX as usize + 1],
     ie: u8,
@@ -42,7 +41,6 @@ impl Gameboybus {
             boot_rom: [0; 256],
             boot_rom_enabled: false,
 
-            ext_ram: [0; u16::MAX as usize + 1],
             wram: [0; u16::MAX as usize + 1],
             hram: [0; u16::MAX as usize + 1],
             ie: 0,
@@ -94,9 +92,8 @@ impl Bus for Gameboybus {
             // Video RAM
             0x8000..=0x9FFF => self.lcd.read_vram(addr - 0x8000),
 
-            // External RAM
-            // TODO bank switching
-            0xA000..=0xBFFF => self.ext_ram[addr],
+            // External (cartridge) RAM
+            0xA000..=0xBFFF => self.cart.read(addr as u16),
 
             // Working RAM (fixed portion)
             0xC000..=0xCFFF => self.wram[addr],
@@ -109,7 +106,7 @@ impl Bus for Gameboybus {
             0xE000..=0xFDFF => panic!("Read from Echo RAM"),
 
             // Sprite Attribute Table (OAM)
-            0xFE00..=0xFE9F => todo!(),
+            0xFE00..=0xFE9F => self.lcd.read_oam(addr - 0xFE00),
 
             // Unusable segment
             0xFEA0..=0xFEFF => 0,
@@ -169,9 +166,8 @@ impl Bus for Gameboybus {
             // Video RAM
             0x8000..=0x9FFF => self.lcd.write_vram(addr - 0x8000, val),
 
-            // External RAM
-            // TODO bank switching
-            0xA000..=0xBFFF => self.ext_ram[addr] = val,
+            // External (cartridge) RAM
+            0xA000..=0xBFFF => self.cart.write(addr as u16, val),
 
             // Working RAM (fixed portion)
             0xC000..=0xCFFF => self.wram[addr] = val,
