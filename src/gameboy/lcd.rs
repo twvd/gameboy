@@ -12,8 +12,6 @@ const OAM_SIZE: usize = 0xA0;
 const OAM_ENTRY_SIZE: usize = 4;
 const VRAM_SIZE: usize = 0x2000;
 
-//const OAM_ENTRIES: usize = 40;
-
 // Tile sizes
 const TILE_BSIZE: usize = 16;
 const TILE_W: isize = 8;
@@ -44,6 +42,10 @@ const LCDS_INT_STAT_OAM: u8 = 1 << 5;
 const LCDS_INT_STAT_VBLANK: u8 = 1 << 4;
 const LCDS_INT_STAT_HBLANK: u8 = 1 << 3;
 const LCDS_LYC: u8 = 1 << 2;
+
+// OAM flags
+const OAM_FLIP_Y: u8 = 1 << 6;
+const OAM_FLIP_X: u8 = 1 << 5;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
 enum LCDStatMode {
@@ -340,12 +342,13 @@ impl LCDController {
         x: isize,
         y: isize,
         palette: u8,
-        is_obj: bool,
+        obj_flags: Option<u8>,
         scanline: isize,
         wrap_x: Option<isize>,
         wrap_y: Option<isize>,
     ) {
         for ty in 0..TILE_H {
+            // Y-axis wrap around (scrolling)
             let disp_y = if let Some(wy) = wrap_y {
                 (y + ty).rem_euclid(wy)
             } else {
@@ -357,11 +360,7 @@ impl LCDController {
             }
 
             for tx in 0..TILE_W {
-                let color_idx = Self::tile_decode(&tile, tx as usize, ty as usize);
-                if is_obj && color_idx == 0 {
-                    continue;
-                }
-                let color = Self::palette_convert(color_idx, palette);
+                // X-axis wrap around (scrolling)
                 let disp_x = if let Some(wx) = wrap_x {
                     (x + tx).rem_euclid(wx)
                 } else {
@@ -371,6 +370,31 @@ impl LCDController {
                 if disp_x < 0 || disp_x >= LCD_W as isize {
                     continue;
                 }
+
+                let color_idx = Self::tile_decode(
+                    &tile,
+                    if obj_flags.unwrap_or(0) & OAM_FLIP_X == OAM_FLIP_X {
+                        // Mirror along X axis
+                        7 - tx as usize
+                    } else {
+                        tx as usize
+                    },
+                    if obj_flags.unwrap_or(0) & OAM_FLIP_Y == OAM_FLIP_Y {
+                        // Mirror along Y axis
+                        7 - ty as usize
+                    } else {
+                        ty as usize
+                    },
+                );
+
+                // Objects blend into background
+                // TODO blending priorities
+                if obj_flags.is_some() && color_idx == 0 {
+                    continue;
+                }
+
+                let color = Self::palette_convert(color_idx, palette);
+
                 self.output
                     .set_pixel(disp_x as usize, disp_y as usize, color);
             }
@@ -392,7 +416,7 @@ impl LCDController {
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
                     self.bgp,
-                    false,
+                    None,
                     scanline,
                     Some(BGW_W * TILE_W),
                     Some(BGW_H * TILE_H),
@@ -412,7 +436,7 @@ impl LCDController {
                     (t_x as isize * TILE_W) - self.wx as isize - 7,
                     (t_y as isize * TILE_H) - self.wy as isize,
                     self.bgp,
-                    false,
+                    None,
                     scanline,
                     None,
                     None,
@@ -449,7 +473,7 @@ impl LCDController {
                     disp_x,
                     disp_y,
                     self.obp[((flags & 0x10) >> 4) as usize],
-                    true,
+                    Some(flags),
                     scanline,
                     None,
                     None,
@@ -462,7 +486,7 @@ impl LCDController {
                         disp_x,
                         disp_y + TILE_H,
                         self.obp[((flags & 0x10) >> 4) as usize],
-                        true,
+                        Some(flags),
                         scanline,
                         None,
                         None,
