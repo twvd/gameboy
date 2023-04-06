@@ -87,6 +87,9 @@ pub struct LCDController {
     /// Current scanline
     ly: u8,
 
+    /// Current window scanline
+    wly: u8,
+
     /// LY compare register
     lyc: u8,
 
@@ -137,6 +140,7 @@ impl LCDController {
             scx: 0,
             wx: 0,
             wy: 0,
+            wly: 0,
             ly: 0,
             lyc: 0,
             bgp: 0,
@@ -182,6 +186,14 @@ impl LCDController {
 
     pub fn in_vblank(&self) -> bool {
         self.dots >= (Self::VBLANK_START * Self::DOTS_PER_LINE)
+    }
+
+    /// Tests all conditions for the window to be drawn and the counter
+    /// running
+    fn is_window_active(&self) -> bool {
+        self.lcdc & (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE) == (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
+            && (0u8..=166).contains(&self.wx)
+            && (0u8..=143).contains(&self.wy)
     }
 
     #[inline(always)]
@@ -429,16 +441,16 @@ impl LCDController {
         }
 
         // The window
-        if self.lcdc & (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
-            == (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
-        {
-            let t_y = (scanline + self.wy as isize) / TILE_H;
+        if self.is_window_active() && self.wly == scanline as u8 {
+            let t_y = (scanline + self.wy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
+            let draw_y =
+                (t_y as isize * TILE_H) - self.wy as isize + (scanline - self.wly as isize);
             for t_x in 0..BGW_W {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
                     (t_x as isize * TILE_W) - self.wx as isize - 7,
-                    (t_y as isize * TILE_H) - self.wy as isize,
+                    draw_y,
                     self.bgp,
                     None,
                     scanline,
@@ -544,6 +556,13 @@ impl Tickable for LCDController {
                 if self.lcds & LCDS_INT_STAT_VBLANK == LCDS_INT_STAT_VBLANK {
                     self.intreq_stat = true;
                 }
+
+                // Reset window line counter
+                self.wly = 0;
+            }
+
+            if self.is_window_active() && !self.in_vblank() {
+                self.wly += 1;
             }
         }
 
