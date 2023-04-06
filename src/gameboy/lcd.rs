@@ -1,4 +1,5 @@
 use crate::display::display::Display;
+use crate::gameboy::lcd_oam::{OAMEntry, OAMTable};
 use crate::tickable::Tickable;
 
 use anyhow::Result;
@@ -8,8 +9,6 @@ use num_traits::ToPrimitive;
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
 
-const OAM_SIZE: usize = 0xA0;
-const OAM_ENTRY_SIZE: usize = 4;
 const VRAM_SIZE: usize = 0x2000;
 
 // Tile sizes
@@ -62,7 +61,7 @@ pub struct LCDController {
     output: Box<dyn Display>,
 
     /// OAM memory
-    oam: [u8; OAM_SIZE],
+    oam: OAMTable,
 
     /// VRAM memory
     vram: [u8; VRAM_SIZE],
@@ -132,7 +131,7 @@ impl LCDController {
     pub fn new(display: Box<dyn Display>) -> Self {
         Self {
             output: display,
-            oam: [0; OAM_SIZE],
+            oam: OAMTable::new(),
             vram: [0; VRAM_SIZE],
 
             lcdc: LCDC_ENABLE,
@@ -335,7 +334,7 @@ impl LCDController {
     }
 
     pub fn write_oam(&mut self, addr: usize, val: u8) {
-        self.oam[addr] = val;
+        self.oam.write(addr, val);
     }
 
     pub fn read_vram(&self, addr: usize) -> u8 {
@@ -343,7 +342,7 @@ impl LCDController {
     }
 
     pub fn read_oam(&self, addr: usize) -> u8 {
-        self.oam[addr]
+        self.oam.read(addr)
     }
 
     /// Converts a color index to a color from the
@@ -354,7 +353,7 @@ impl LCDController {
     }
 
     fn draw_tile_at(
-        &mut self,
+        &self,
         tile: &[u8],
         line: &mut [u8],
         x: isize,
@@ -475,25 +474,21 @@ impl LCDController {
 
         // Object sprites
         if self.lcdc & LCDC_OBJ_ENABLE == LCDC_OBJ_ENABLE {
-            for obj_idx in 0..(OAM_SIZE / OAM_ENTRY_SIZE) {
-                let entry =
-                    self.oam[(obj_idx * OAM_ENTRY_SIZE)..(obj_idx + 1) * OAM_ENTRY_SIZE].to_owned();
-                let (y, x, mut tile_idx, flags) = (entry[0], entry[1], entry[2], entry[3]);
-                let disp_y = y as isize - 16;
+            for e in self.oam.iter_scanline(
+                scanline,
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
-                    // 8x16
-                    if !(disp_y <= scanline && disp_y + (TILE_H * 2) > scanline) {
-                        continue;
-                    }
-                    tile_idx &= !0x01;
+                    TILE_H * 2
                 } else {
-                    // 8x8
-                    if !(disp_y <= scanline && disp_y + TILE_H > scanline) {
-                        continue;
-                    }
+                    TILE_H
+                },
+            ) {
+                let disp_y = e.y as isize - 16;
+                let mut tile_idx = e.tile_idx;
+                if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
+                    tile_idx &= !0x01;
                 }
 
-                let disp_x = x as isize - 8;
+                let disp_x = e.x as isize - 8;
 
                 let sprite = self.get_sprite(tile_idx as usize).to_owned();
 
@@ -502,8 +497,8 @@ impl LCDController {
                     &mut line,
                     disp_x,
                     disp_y,
-                    self.obp[((flags & 0x10) >> 4) as usize],
-                    Some(flags),
+                    self.obp[((e.flags & 0x10) >> 4) as usize],
+                    Some(e.flags),
                     scanline,
                     None,
                     None,
@@ -516,8 +511,8 @@ impl LCDController {
                         &mut line,
                         disp_x,
                         disp_y + TILE_H,
-                        self.obp[((flags & 0x10) >> 4) as usize],
-                        Some(flags),
+                        self.obp[((e.flags & 0x10) >> 4) as usize],
+                        Some(e.flags),
                         scanline,
                         None,
                         None,
@@ -723,7 +718,6 @@ mod tests {
         while c.get_stat_mode() != LCDStatMode::HBlank {
             c.tick(1).unwrap();
         }
-        println!("{:02X}", c.read_io(0xFF41));
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
