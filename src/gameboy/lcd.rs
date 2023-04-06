@@ -1,5 +1,5 @@
 use crate::display::display::Display;
-use crate::gameboy::lcd_oam::{OAMEntry, OAMTable};
+use crate::gameboy::lcd_oam::OAMTable;
 use crate::tickable::Tickable;
 
 use anyhow::Result;
@@ -206,6 +206,8 @@ impl LCDController {
         } else {
             0x9800
         };
+
+        assert!(tm_x < BGW_W && tm_y < BGW_H);
 
         self.vram[(offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
     }
@@ -452,17 +454,15 @@ impl LCDController {
         }
 
         // The window
-        if self.is_window_active() && self.wly == scanline as u8 {
-            let t_y = (scanline + self.wy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
-            let draw_y =
-                (t_y as isize * TILE_H) - self.wy as isize + (scanline - self.wly as isize);
+        if self.is_window_active() && scanline >= self.wy as isize {
+            let t_y = self.wly as isize / TILE_H;
             for t_x in 0..BGW_W {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
                     &mut line,
-                    (t_x as isize * TILE_W) - self.wx as isize - 7,
-                    draw_y,
+                    (t_x as isize * TILE_W) + self.wx as isize - 7,
+                    (t_y as isize * TILE_H) + (scanline - self.wly as isize),
                     self.bgp,
                     None,
                     scanline,
@@ -486,6 +486,10 @@ impl LCDController {
                 let mut tile_idx = e.tile_idx;
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
                     tile_idx &= !0x01;
+                    if e.flags & OAM_FLIP_Y == OAM_FLIP_Y {
+                        // Also rotate the tiles for 8x16
+                        tile_idx |= 0x01;
+                    }
                 }
 
                 let disp_x = e.x as isize - 8;
@@ -505,7 +509,12 @@ impl LCDController {
                 );
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
                     // 8x16
-                    let sprite2 = self.get_sprite((tile_idx | 1) as usize).to_owned();
+                    let tile_idx2 = if e.flags & OAM_FLIP_Y == OAM_FLIP_Y {
+                        tile_idx & !0x01
+                    } else {
+                        tile_idx | 0x01
+                    };
+                    let sprite2 = self.get_sprite(tile_idx2 as usize).to_owned();
                     self.draw_tile_at(
                         &sprite2,
                         &mut line,
@@ -574,10 +583,6 @@ impl Tickable for LCDController {
                 // Reset window line counter
                 self.wly = 0;
             }
-
-            if self.is_window_active() && !self.in_vblank() {
-                self.wly += 1;
-            }
         }
 
         // Check HBlank STAT interrupt
@@ -600,6 +605,11 @@ impl Tickable for LCDController {
             && !self.in_vblank()
         {
             self.draw_scanline(self.ly as isize);
+
+            // Window line counter
+            if self.is_window_active() && !self.in_vblank() && self.ly >= self.wy {
+                self.wly += 1;
+            }
         }
 
         // Update mode register
