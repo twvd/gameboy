@@ -44,6 +44,7 @@ const LCDS_INT_STAT_HBLANK: u8 = 1 << 3;
 const LCDS_LYC: u8 = 1 << 2;
 
 // OAM flags
+const OAM_BGW_PRIORITY: u8 = 1 << 7;
 const OAM_FLIP_Y: u8 = 1 << 6;
 const OAM_FLIP_X: u8 = 1 << 5;
 
@@ -355,6 +356,7 @@ impl LCDController {
     fn draw_tile_at(
         &mut self,
         tile: &[u8],
+        line: &mut [u8],
         x: isize,
         y: isize,
         palette: u8,
@@ -404,15 +406,22 @@ impl LCDController {
                 );
 
                 // Objects blend into background
-                // TODO blending priorities
-                if obj_flags.is_some() && color_idx == 0 {
-                    continue;
+                if obj_flags.is_some() {
+                    if color_idx == 0 {
+                        continue;
+                    }
+
+                    // BG priority
+                    if obj_flags.unwrap() & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
+                        && line[disp_x as usize] > 0
+                    {
+                        continue;
+                    }
                 }
 
                 let color = Self::palette_convert(color_idx, palette);
 
-                self.output
-                    .set_pixel(disp_x as usize, disp_y as usize, color);
+                line[disp_x as usize] = color;
             }
         }
     }
@@ -422,6 +431,8 @@ impl LCDController {
             return;
         }
 
+        let mut line = [0; LCD_W];
+
         // Background
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
             let t_y = (scanline + self.scy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
@@ -429,6 +440,7 @@ impl LCDController {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
+                    &mut line,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
                     self.bgp,
@@ -449,6 +461,7 @@ impl LCDController {
                 let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
                 self.draw_tile_at(
                     &tile,
+                    &mut line,
                     (t_x as isize * TILE_W) - self.wx as isize - 7,
                     draw_y,
                     self.bgp,
@@ -486,6 +499,7 @@ impl LCDController {
 
                 self.draw_tile_at(
                     &sprite,
+                    &mut line,
                     disp_x,
                     disp_y,
                     self.obp[((flags & 0x10) >> 4) as usize],
@@ -499,6 +513,7 @@ impl LCDController {
                     let sprite2 = self.get_sprite((tile_idx | 1) as usize).to_owned();
                     self.draw_tile_at(
                         &sprite2,
+                        &mut line,
                         disp_x,
                         disp_y + TILE_H,
                         self.obp[((flags & 0x10) >> 4) as usize],
@@ -509,6 +524,10 @@ impl LCDController {
                     );
                 }
             }
+        }
+
+        for (x, c) in line.into_iter().enumerate() {
+            self.output.set_pixel(x, scanline as usize, c);
         }
     }
 
