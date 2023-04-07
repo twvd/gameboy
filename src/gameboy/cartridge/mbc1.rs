@@ -66,7 +66,9 @@ impl Bus for Mbc1 {
             // RAM enable
             0x0000..=0x1FFF => (),
             // ROM bank select
-            0x2000..=0x3FFF => self.rom_banksel = cmp::max(val, 1) & ROM_BANKS_MAX as u8,
+            0x2000..=0x3FFF => {
+                self.rom_banksel = cmp::max(val & 0x1F, 1) | (val & !0x1F) & ROM_BANKS_MAX as u8
+            }
             // RAM/upper ROM bank select
             0x4000..=0x5FFF => self.ram_banksel = val & RAM_BANKS_MAX as u8,
             // Banking mode select
@@ -113,9 +115,10 @@ mod tests {
             for i in 0..(ROM_BANK_SIZE as u16) {
                 assert_eq!(c.read(i), 0);
             }
-            // Bank n
+            // Bank n (with addressing quirk)
+            let expected = cmp::max(b & 0x1F, 1) | (b & !0x1F);
             for i in 0u16..(ROM_BANK_SIZE as u16) {
-                assert_eq!(c.read(0x4000 + i), b);
+                assert_eq!(c.read(0x4000 + i), expected);
             }
         }
 
@@ -129,6 +132,12 @@ mod tests {
         c.write(0x2000, 0);
         for i in 0u16..(ROM_BANK_SIZE as u16) {
             assert_eq!(c.read(0x4000 + i), 0x01);
+        }
+
+        // Selecting bank 0x60 should select bank 0x61 (quirk)
+        c.write(0x2000, 0x60);
+        for i in 0u16..(ROM_BANK_SIZE as u16) {
+            assert_eq!(c.read(0x4000 + i), 0x61);
         }
     }
 
