@@ -16,6 +16,7 @@ use gbrust::gameboy::cartridge::cartridge;
 use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::cpu::regs::Register;
 use gbrust::gameboy::lcd::LCDController;
+use gbrust::input::input::{Input, NullInput};
 use gbrust::tickable::Tickable;
 
 #[derive(Parser)]
@@ -68,6 +69,7 @@ fn main() -> Result<()> {
     };
 
     let lcd = LCDController::new(display);
+    let input: Box<dyn Input> = Box::new(NullInput::new());
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
@@ -76,9 +78,14 @@ fn main() -> Result<()> {
         println!("{}", cartridge);
         let mut b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
-            Box::new(Gameboybus::new(cartridge, Some(bootrom.as_slice()), lcd))
+            Box::new(Gameboybus::new(
+                cartridge,
+                Some(bootrom.as_slice()),
+                lcd,
+                input,
+            ))
         } else {
-            Box::new(Gameboybus::new(cartridge, None, lcd))
+            Box::new(Gameboybus::new(cartridge, None, lcd, input))
         };
         if args.serial_out {
             b.enable_serial_output();

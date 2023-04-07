@@ -1,8 +1,10 @@
 use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
+use super::super::joypad::Joypad;
 use super::super::lcd::LCDController;
 use super::super::timer::Timer;
 use super::bus::Bus;
+use crate::input::input::Input;
 use crate::tickable::Tickable;
 
 use anyhow::Result;
@@ -23,6 +25,7 @@ pub struct Gameboybus {
 
     lcd: LCDController,
     timer: Timer,
+    joypad: Joypad,
 
     /// IF register
     intflags: u8,
@@ -35,7 +38,12 @@ pub struct Gameboybus {
 }
 
 impl Gameboybus {
-    pub fn new(cart: Box<dyn Cartridge>, bootrom: Option<&[u8]>, lcd: LCDController) -> Self {
+    pub fn new(
+        cart: Box<dyn Cartridge>,
+        bootrom: Option<&[u8]>,
+        lcd: LCDController,
+        input: Box<dyn Input>,
+    ) -> Self {
         let mut bus = Gameboybus {
             cart,
             boot_rom: [0; 256],
@@ -47,6 +55,7 @@ impl Gameboybus {
 
             lcd,
             timer: Timer::new(),
+            joypad: Joypad::new(input),
 
             intflags: 0,
             serialbuffer: 0,
@@ -112,7 +121,7 @@ impl Bus for Gameboybus {
             0xFEA0..=0xFEFF => 0,
 
             // I/O - Joypad
-            0xFF00 => 0xFF,
+            0xFF00 => self.joypad.read(),
 
             // I/O - Serial transfer data buffer
             0xFF01 => self.serialbuffer,
@@ -184,6 +193,9 @@ impl Bus for Gameboybus {
 
             // Unusable segment
             0xFEA0..=0xFEFF => (),
+
+            // I/O - Joypad
+            0xFF00 => self.joypad.write(val),
 
             // I/O - Serial transfer data buffer
             0xFF01 => self.serialbuffer = val,
