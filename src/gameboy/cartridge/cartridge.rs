@@ -21,9 +21,30 @@ pub enum CartridgeType {
     Mbc1 = 0x01,
     Mbc1Ram = 0x02,
     Mbc1RamBat = 0x03,
+    Mbc2 = 0x05,
+    Mbc2Bat = 0x06,
+    RomRam = 0x08,
+    RomRamBat = 0x09,
+    Mmm01 = 0x0B,
+    Mmm01Ram = 0x0C,
+    Mmm01RamBat = 0x0D,
+    Mbc3RtcBat = 0x0F,
+    Mbc3RtcRamBat = 0x10,
     Mbc3 = 0x11,
     Mbc3Ram = 0x12,
     Mbc3RamBat = 0x13,
+    Mbc5 = 0x19,
+    Mbc5Ram = 0x1A,
+    Mbc5RamBat = 0x1B,
+    Mbc5Rumble = 0x1C,
+    Mbc5RumbleRam = 0x1D,
+    Mbc5RumbleRamBat = 0x1E,
+    Mbc6 = 0x20,
+    Mbc7SensorRumbleRamBat = 0x22,
+    PocketCamera = 0xFC,
+    Tama5 = 0xFD,
+    Huc3 = 0xFE,
+    Huc1RamBat = 0xFF,
 }
 
 pub trait Cartridge: Bus + Tickable {
@@ -73,6 +94,7 @@ pub fn load(rom: &[u8]) -> Box<dyn Cartridge> {
         Some(CartridgeType::Mbc3) => Box::new(Mbc3::new(rom)),
         Some(CartridgeType::Mbc3Ram) => Box::new(Mbc3::new(rom)),
         Some(CartridgeType::Mbc3RamBat) => Box::new(Mbc3::new(rom)),
+        Some(unknown) => panic!("Unknown cartridge type {:?}", unknown),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }
 }
