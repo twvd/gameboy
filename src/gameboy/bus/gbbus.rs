@@ -112,7 +112,7 @@ impl Bus for Gameboybus {
             0xD000..=0xDFFF => self.wram[addr],
 
             // Echo RAM
-            0xE000..=0xFDFF => panic!("Read from Echo RAM"),
+            0xE000..=0xFDFF => self.wram[addr - 0x2000],
 
             // Sprite Attribute Table (OAM)
             0xFE00..=0xFE9F => self.lcd.read_oam(addr - 0xFE00),
@@ -186,7 +186,7 @@ impl Bus for Gameboybus {
             0xD000..=0xDFFF => self.wram[addr] = val,
 
             // Echo RAM
-            0xE000..=0xFDFF => panic!("Write to Echo RAM"),
+            0xE000..=0xFDFF => self.wram[addr - 0x2000] = val,
 
             // Sprite Attribute Table (OAM)
             0xFE00..=0xFE9F => self.lcd.write_oam(addr - 0xFE00, val),
