@@ -5,24 +5,24 @@ use std::cmp;
 
 const ROM_BANK_SIZE: usize = 16 * 1024;
 const ROM_BANK_COUNT: usize = ROM_BANKS_MAX + 1;
-const ROM_BANKS_MAX: usize = 0x1F;
+const ROM_BANKS_MAX: usize = 0x7F;
 
 const RAM_BANK_SIZE: usize = 8 * 1024;
 const RAM_BANK_COUNT: usize = RAM_BANKS_MAX + 1;
 const RAM_BANKS_MAX: usize = 0x03;
 
 pub struct Mbc1 {
-    rom: [u8; ROM_BANK_COUNT * ROM_BANK_SIZE],
+    rom: Vec<u8>,
     rom_banksel: u8,
-    ram: [u8; RAM_BANK_COUNT * RAM_BANK_SIZE],
+    ram: Vec<u8>,
     ram_banksel: u8,
 }
 
 impl Mbc1 {
     pub fn new(rom: &[u8]) -> Self {
         let mut cart = Self {
-            rom: [0; ROM_BANK_COUNT * ROM_BANK_SIZE],
-            ram: [0; RAM_BANK_COUNT * RAM_BANK_SIZE],
+            rom: vec![0; ROM_BANK_COUNT * ROM_BANK_SIZE],
+            ram: vec![0; RAM_BANK_COUNT * RAM_BANK_SIZE],
             rom_banksel: 1,
             ram_banksel: 0,
         };
@@ -52,7 +52,7 @@ impl Bus for Mbc1 {
         match addr {
             // ROM - Always bank 0
             0x0000..=0x3FFF => self.rom[addr as usize],
-            // ROM - Bank 1..=31
+            // ROM - Bank 1..n
             0x4000..=0x7FFF => self.rom[self.rom_translate(addr)],
             // RAM - Bank 0..=3
             0xA000..=0xBFFF => self.ram[self.ram_translate(addr)],
@@ -72,7 +72,10 @@ impl Bus for Mbc1 {
             // Banking mode select
             0x6000..=0x7FFF => todo!(),
             // RAM - Bank 0..=3
-            0xA000..=0xBFFF => self.ram[self.ram_translate(addr)] = val,
+            0xA000..=0xBFFF => {
+                let tr_addr = self.ram_translate(addr);
+                self.ram[tr_addr] = val
+            }
 
             _ => unreachable!(),
         }
@@ -117,9 +120,9 @@ mod tests {
         }
 
         // Test masking
-        c.write(0x2000, 0x3F);
+        c.write(0x2000, 0x02);
         for i in 0u16..(ROM_BANK_SIZE as u16) {
-            assert_eq!(c.read(0x4000 + i), 0x1F);
+            assert_eq!(c.read(0x4000 + i), 0x02);
         }
 
         // Selecting bank 0 should select bank 1
