@@ -3,6 +3,7 @@ use crate::tickable::Tickable;
 
 use super::mbc1::Mbc1;
 use super::mbc3::Mbc3;
+use super::mbc5::Mbc5;
 use super::romonly::RomOnly;
 
 use anyhow::Result;
@@ -94,6 +95,9 @@ pub fn load(rom: &[u8]) -> Box<dyn Cartridge> {
         Some(CartridgeType::Mbc3) => Box::new(Mbc3::new(rom)),
         Some(CartridgeType::Mbc3Ram) => Box::new(Mbc3::new(rom)),
         Some(CartridgeType::Mbc3RamBat) => Box::new(Mbc3::new(rom)),
+        Some(CartridgeType::Mbc5) => Box::new(Mbc5::new(rom)),
+        Some(CartridgeType::Mbc5Ram) => Box::new(Mbc5::new(rom)),
+        Some(CartridgeType::Mbc5RamBat) => Box::new(Mbc5::new(rom)),
         Some(unknown) => panic!("Unknown cartridge type {:?}", unknown),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }
