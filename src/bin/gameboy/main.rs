@@ -62,14 +62,19 @@ fn main() -> Result<()> {
 
     let rom = fs::read(args.filename)?;
 
-    let display: Box<dyn Display> = if !args.no_display {
-        Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps))
+    let display: Box<dyn Display>;
+    let input: Box<dyn Input>;
+
+    if !args.no_display {
+        let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
+        input = Box::new(cdisplay.create_input());
+        display = cdisplay as Box<dyn Display>;
     } else {
-        Box::new(NullDisplay::new())
-    };
+        display = Box::new(NullDisplay::new());
+        input = Box::new(NullInput::new());
+    }
 
     let lcd = LCDController::new(display);
-    let input: Box<dyn Input> = Box::new(NullInput::new());
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {

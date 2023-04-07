@@ -1,5 +1,5 @@
 /// Base trait for a display output
-pub trait Display {
+pub trait Display: std::any::Any {
     fn set_pixel(&mut self, x: usize, y: usize, color: u8);
     fn clear(&mut self);
     fn render(&mut self);

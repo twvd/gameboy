@@ -1,7 +1,9 @@
+use std::rc::Rc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use super::display::Display;
+use crate::input::curses::CursesInput;
 
 use itertools::Itertools;
 use pancurses;
@@ -16,7 +18,7 @@ pub struct CursesDisplay {
     width: usize,
     height: usize,
     buffer: Vec<Vec<u8>>,
-    window: pancurses::Window,
+    window: Rc<pancurses::Window>,
     updates: usize,
     last_frame: Instant,
     frametime: u64,
@@ -60,11 +62,15 @@ impl CursesDisplay {
             width,
             height,
             buffer: vs,
-            window: win,
+            window: Rc::new(win),
             updates: 0,
             last_frame: Instant::now(),
             frametime: (1000000 / fps),
         }
+    }
+
+    pub fn create_input(&self) -> CursesInput {
+        CursesInput::new(self.window.clone())
     }
 
     fn render_partial(&mut self, full: bool) {

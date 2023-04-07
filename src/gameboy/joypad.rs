@@ -33,7 +33,7 @@ impl Joypad {
 
     pub fn read(&self) -> u8 {
         self.select
-            | match self.select & JOYPAD_SELECT_MASK {
+            | match !self.select & JOYPAD_SELECT_MASK {
                 JOYPAD_SELECT_ACTION => {
                     self.read_bit(Button::Start, JOYPAD_IN_DOWN_START)
                         | self.read_bit(Button::Select, JOYPAD_IN_UP_SELECT)

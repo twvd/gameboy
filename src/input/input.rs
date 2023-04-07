@@ -1,3 +1,6 @@
+use strum_macros::EnumIter;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, EnumIter, Ord, PartialOrd)]
 pub enum Button {
     DPadUp,
     DPadDown,
