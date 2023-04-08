@@ -277,15 +277,15 @@ impl RegisterFile {
 
 impl fmt::Display for RegisterFile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "A: {:02X}  F: {:02X}", self.a, self.f)?;
-        writeln!(
-            f,
-            "B: {:02X}  C: {:02X} D: {:02X} E: {:02X}",
-            self.b, self.c, self.d, self.e
-        )?;
         write!(
             f,
-            "HL: {:04X}     SP: {:04X}  PC: {:04X}",
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} HL:{:04X} SP:{:04X} PC:{:04X}",
+            self.a,
+            self.f,
+            self.b,
+            self.c,
+            self.d,
+            self.e,
             self.read16(Register::HL).or(Err(fmt::Error))?,
             self.sp,
             self.pc

@@ -1301,8 +1301,11 @@ impl CPU {
         unreachable!();
     }
 
-    pub fn op_invalid(&mut self, _instr: &Instruction) -> CPUOpResult {
-        panic!("Invalid opcode");
+    pub fn op_invalid(&mut self, instr: &Instruction) -> CPUOpResult {
+        panic!(
+            "Invalid opcode {:02X} @ PC {:04X} - {}",
+            instr.raw[0], self.regs.pc, self.regs
+        );
     }
 }
 
