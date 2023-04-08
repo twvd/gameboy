@@ -87,14 +87,37 @@ impl CPU {
     /// IF register address on address bus
     const BUS_IF: u16 = 0xFF0F;
 
+    /// Boot ROM disable register address on address bus
+    const BUS_BOOTROM_DISABLE: u16 = 0xFF50;
+
     pub fn new(bus: Box<dyn Bus>) -> Self {
-        Self {
+        let mut c = Self {
             bus,
             regs: RegisterFile::new(),
             cycles: 0,
             ime: false,
             halted: false,
+        };
+        if c.bus.read(Self::BUS_BOOTROM_DISABLE) == 1 {
+            c.setup_postboot().unwrap();
         }
+        c
+    }
+
+    /// Set up registers to the expected state after boot
+    fn setup_postboot(&mut self) -> Result<()> {
+        self.regs.write(Register::A, 0x01)?;
+        self.regs.write(Register::F, 0xB0)?;
+        self.regs.write(Register::B, 0x00)?;
+        self.regs.write(Register::C, 0x13)?;
+        self.regs.write(Register::D, 0x00)?;
+        self.regs.write(Register::E, 0xD8)?;
+        self.regs.write(Register::H, 0x01)?;
+        self.regs.write(Register::H, 0x01)?;
+        self.regs.write(Register::L, 0x4D)?;
+        self.regs.write(Register::SP, 0xFFFE)?;
+        self.regs.write(Register::PC, 0x0100)?;
+        Ok(())
     }
 
     pub fn peek_next_instr(&self) -> Result<Instruction> {
