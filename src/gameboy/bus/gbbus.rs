@@ -12,6 +12,7 @@ use anyhow::Result;
 use std::fmt;
 use std::io;
 use std::io::Write;
+use std::sync::mpsc;
 
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
@@ -36,6 +37,9 @@ pub struct Gameboybus {
 
     /// Output serial data to terminal
     serial_output: bool,
+
+    /// Serial output channel (for tests)
+    serial_channel: Option<mpsc::Sender<u8>>,
 }
 
 impl Gameboybus {
@@ -61,6 +65,7 @@ impl Gameboybus {
             intflags: 0,
             serialbuffer: 0,
             serial_output: false,
+            serial_channel: None,
         };
 
         if let Some(br) = bootrom {
@@ -73,6 +78,10 @@ impl Gameboybus {
 
     pub fn enable_serial_output(&mut self) {
         self.serial_output = true;
+    }
+
+    pub fn enable_serial_channel(&mut self, tx: mpsc::Sender<u8>) {
+        self.serial_channel = Some(tx);
     }
 
     fn update_intflags(&mut self) {
@@ -208,6 +217,9 @@ impl BusMember for Gameboybus {
                 if val == 0x81 && self.serial_output {
                     print!("{}", self.serialbuffer as char);
                     io::stdout().flush().unwrap_or_default();
+                }
+                if let Some(ref mut tx) = &mut self.serial_channel {
+                    tx.send(self.serialbuffer).unwrap_or_default();
                 }
             }
 
