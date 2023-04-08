@@ -1,5 +1,5 @@
 use super::cartridge::Cartridge;
-use crate::gameboy::bus::bus::Bus;
+use crate::gameboy::bus::bus::BusMember;
 
 use std::cmp;
 
@@ -45,9 +45,16 @@ impl Mbc1 {
     }
 }
 
-impl Cartridge for Mbc1 {}
+impl Cartridge for Mbc1 {
+    fn dump_state(&self) -> String {
+        format!(
+            "ROM bank: {:02X} - RAM bank: {:02X}",
+            self.rom_banksel, self.ram_banksel
+        )
+    }
+}
 
-impl Bus for Mbc1 {
+impl BusMember for Mbc1 {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             // ROM - Always bank 0

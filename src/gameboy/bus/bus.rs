@@ -1,6 +1,7 @@
 use crate::tickable::Tickable;
+use std::fmt;
 
-pub trait Bus: Tickable {
+pub trait BusMember {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, val: u8);
 
@@ -32,6 +33,8 @@ pub trait Bus: Tickable {
         u16::from_le_bytes([self.read(addr), self.read(addr.wrapping_add(1))])
     }
 }
+
+pub trait Bus: BusMember + fmt::Display + Tickable {}
 
 pub struct BusIterator<'a> {
     bus: &'a dyn Bus,

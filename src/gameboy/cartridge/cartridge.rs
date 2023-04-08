@@ -1,12 +1,10 @@
-use crate::gameboy::bus::bus::Bus;
-use crate::tickable::Tickable;
+use crate::gameboy::bus::bus::BusMember;
 
 use super::mbc1::Mbc1;
 use super::mbc3::Mbc3;
 use super::mbc5::Mbc5;
 use super::romonly::RomOnly;
 
-use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -15,6 +13,8 @@ use std::fmt;
 const TITLE_OFFSET: usize = 0x134;
 const TITLE_SIZE: usize = 16;
 const CARTTYPE_OFFSET: usize = 0x147;
+const ROMSIZE_OFFSET: usize = 0x148;
+const RAMSIZE_OFFSET: usize = 0x149;
 
 #[derive(Debug, FromPrimitive)]
 pub enum CartridgeType {
@@ -48,7 +48,7 @@ pub enum CartridgeType {
     Huc1RamBat = 0xFF,
 }
 
-pub trait Cartridge: Bus + Tickable {
+pub trait Cartridge: BusMember {
     fn get_title(&self) -> String {
         String::from_utf8(
             self.read_vec(TITLE_OFFSET as u16, TITLE_SIZE)
@@ -62,25 +62,49 @@ pub trait Cartridge: Bus + Tickable {
     fn get_type(&self) -> CartridgeType {
         CartridgeType::from_u8(self.read(CARTTYPE_OFFSET as u16)).unwrap()
     }
+
+    fn get_rom_size(&self) -> u32 {
+        32 * 1024 * (1 << self.read(ROMSIZE_OFFSET as u16) as u32)
+    }
+
+    fn get_rom_banks(&self) -> u32 {
+        self.get_rom_size() / (16 * 1024)
+    }
+
+    fn get_ram_size(&self) -> u32 {
+        match self.read(RAMSIZE_OFFSET as u16) {
+            0 => 0,
+            2 => 8 * 1024,
+            3 => 32 * 1024,
+            4 => 128 * 1024,
+            5 => 64 * 1024,
+            _ => panic!(
+                "Unknown RAM size value {}",
+                self.read(RAMSIZE_OFFSET as u16)
+            ),
+        }
+    }
+
+    fn get_ram_banks(&self) -> u32 {
+        self.get_ram_size() / (8 * 1024)
+    }
+
+    fn dump_state(&self) -> String;
 }
 
 impl fmt::Display for dyn Cartridge {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Title: {} - Type: {:?}",
+            "\"{}\" - {:?} - {} KB ROM ({} bank(s), 00-{:02X}), {} KB RAM ({} bank(s))",
             self.get_title(),
-            self.get_type()
+            self.get_type(),
+            self.get_rom_size(),
+            self.get_rom_banks(),
+            self.get_rom_banks(),
+            self.get_ram_size(),
+            self.get_ram_banks()
         )
-    }
-}
-
-impl<T> Tickable for T
-where
-    T: Cartridge,
-{
-    fn tick(&mut self, cycles: usize) -> Result<usize> {
-        Ok(cycles)
     }
 }
 

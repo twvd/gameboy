@@ -3,12 +3,13 @@ use super::super::cpu::cpu;
 use super::super::joypad::Joypad;
 use super::super::lcd::LCDController;
 use super::super::timer::Timer;
-use super::bus::Bus;
+use super::bus::{Bus, BusMember};
 use crate::input::input::Input;
 use crate::tickable::Tickable;
 
 use anyhow::Result;
 
+use std::fmt;
 use std::io;
 use std::io::Write;
 
@@ -87,7 +88,9 @@ impl Gameboybus {
     }
 }
 
-impl Bus for Gameboybus {
+impl Bus for Gameboybus {}
+
+impl BusMember for Gameboybus {
     fn read(&self, addr: u16) -> u8 {
         let addr = addr as usize;
 
@@ -257,6 +260,12 @@ impl Tickable for Gameboybus {
         self.update_intflags();
 
         Ok(ticks)
+    }
+}
+
+impl fmt::Display for Gameboybus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.cart.dump_state())
     }
 }
 

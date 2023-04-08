@@ -1,5 +1,5 @@
 use super::cartridge::Cartridge;
-use crate::gameboy::bus::bus::Bus;
+use crate::gameboy::bus::bus::BusMember;
 
 pub struct RomOnly {
     rom: [u8; 32 * 1024],
@@ -15,9 +15,13 @@ impl RomOnly {
     }
 }
 
-impl Cartridge for RomOnly {}
+impl Cartridge for RomOnly {
+    fn dump_state(&self) -> String {
+        "".to_string()
+    }
+}
 
-impl Bus for RomOnly {
+impl BusMember for RomOnly {
     fn read(&self, addr: u16) -> u8 {
         self.rom[addr as usize]
     }

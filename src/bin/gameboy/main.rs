@@ -64,6 +64,9 @@ fn main() -> Result<()> {
     let display: Box<dyn Display>;
     let input: Box<dyn Input>;
 
+    let cartridge = cartridge::load(&rom);
+    println!("Cartridge: {}", cartridge);
+
     if !args.no_display {
         let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
         input = Box::new(cdisplay.create_input());
@@ -77,9 +80,6 @@ fn main() -> Result<()> {
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
-        let cartridge = cartridge::load(&rom);
-        println!("Cartridge loaded");
-        println!("{}", cartridge);
         let mut b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
             Box::new(Gameboybus::new(
@@ -109,17 +109,7 @@ fn main() -> Result<()> {
 
     loop {
         if args.verbose && cpu.bus.read(0xFF50) == 1 {
-            let state = format!(
-                "Cycle: {}\n{}\nIME: {} IE: {} IF:{}\n --> {}\n",
-                cpu.get_cycles(),
-                cpu.regs,
-                if cpu.ime { "ON" } else { "off" },
-                cpu.bus.read(0xFFFF),
-                cpu.bus.read(0xFF0F),
-                cpu.peek_next_instr()?
-            );
-
-            println!("{}", state);
+            eprintln!("{}", cpu.dump_state());
         }
 
         if args.pause {

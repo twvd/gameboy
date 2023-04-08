@@ -1,7 +1,9 @@
 use anyhow::Result;
 
-use super::bus::Bus;
+use super::bus::{Bus, BusMember};
 use crate::tickable::Tickable;
+
+use std::fmt;
 
 pub struct Testbus {
     mem: [u8; u16::MAX as usize + 1],
@@ -21,7 +23,9 @@ impl Testbus {
     }
 }
 
-impl Bus for Testbus {
+impl Bus for Testbus {}
+
+impl BusMember for Testbus {
     fn read(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
@@ -34,6 +38,12 @@ impl Bus for Testbus {
 impl Tickable for Testbus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         Ok(ticks)
+    }
+}
+
+impl fmt::Display for Testbus {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Result::Ok(())
     }
 }
 

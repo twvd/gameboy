@@ -1,5 +1,5 @@
 use super::cpu::cpu::CPU_CLOCK_HZ;
-use crate::gameboy::bus::bus::Bus;
+use crate::gameboy::bus::bus::BusMember;
 use crate::tickable::Tickable;
 
 use anyhow::Result;
@@ -62,7 +62,7 @@ impl Timer {
     }
 }
 
-impl Bus for Timer {
+impl BusMember for Timer {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             // DIV - Divider

@@ -120,6 +120,19 @@ impl CPU {
         Ok(())
     }
 
+    pub fn dump_state(&self) -> String {
+        format!(
+            "{} {} IME:{} IE:{} IF:{} - {}\n --> {}\n",
+            self.get_cycles(),
+            self.regs,
+            self.ime,
+            self.bus.read(Self::BUS_IE),
+            self.bus.read(Self::BUS_IF),
+            self.bus,
+            self.peek_next_instr().unwrap()
+        )
+    }
+
     pub fn peek_next_instr(&self) -> Result<Instruction> {
         let mut busiter = BusIterator::new_from(self.bus.borrow(), self.regs.pc);
         Instruction::decode(&mut busiter)
@@ -1327,7 +1340,9 @@ impl CPU {
     pub fn op_invalid(&mut self, instr: &Instruction) -> CPUOpResult {
         panic!(
             "Invalid opcode {:02X} @ PC {:04X} - {}",
-            instr.raw[0], self.regs.pc, self.regs
+            instr.raw[0],
+            self.regs.pc,
+            self.dump_state()
         );
     }
 }

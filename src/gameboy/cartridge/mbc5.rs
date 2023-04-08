@@ -1,5 +1,5 @@
 use super::cartridge::Cartridge;
-use crate::gameboy::bus::bus::Bus;
+use crate::gameboy::bus::bus::BusMember;
 
 const ROM_BANK_SIZE: usize = 16 * 1024;
 const ROM_BANK_COUNT: usize = ROM_BANKS_MAX + 1;
@@ -43,9 +43,16 @@ impl Mbc5 {
     }
 }
 
-impl Cartridge for Mbc5 {}
+impl Cartridge for Mbc5 {
+    fn dump_state(&self) -> String {
+        format!(
+            "ROM bank: {:02X} - RAM bank: {:02X}",
+            self.rom_banksel, self.ram_banksel
+        )
+    }
+}
 
-impl Bus for Mbc5 {
+impl BusMember for Mbc5 {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             // ROM - Always bank 0
