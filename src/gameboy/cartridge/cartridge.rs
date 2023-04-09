@@ -56,7 +56,7 @@ pub trait Cartridge: BusMember {
                 .take_while(|&c| c != 0)
                 .collect(),
         )
-        .unwrap()
+        .unwrap_or("INVALID".to_string())
     }
 
     fn get_type(&self) -> CartridgeType {

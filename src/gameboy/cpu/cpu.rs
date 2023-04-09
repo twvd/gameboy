@@ -1146,7 +1146,7 @@ impl CPU {
         }
 
         // value = address - 2.
-        let rel_addr = instr.imms8(0)? + 2;
+        let rel_addr = instr.imms8(0)?.wrapping_add(2);
         let new_pc = self.regs.pc.wrapping_add_signed(rel_addr.into());
         Ok(OpOk::branch(self, instr, new_pc))
     }
