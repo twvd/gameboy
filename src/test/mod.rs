@@ -1,5 +1,6 @@
 mod acid;
 mod blargg;
+mod mooneye;
 
 use crate::display::display::NullDisplay;
 use crate::display::test::TestDisplay;
@@ -15,7 +16,7 @@ use itertools::Itertools;
 use std::sync::mpsc;
 use std::time::Instant;
 
-fn test_serial(rom: &[u8], pass_text: &str, time_limit: u128) {
+fn test_serial(rom: &[u8], pass_text: &[u8], fail_text: &[u8], time_limit: u128) {
     let cart = cartridge::load(rom);
     let display = Box::new(NullDisplay::new());
     let input = Box::new(NullInput::new());
@@ -29,7 +30,7 @@ fn test_serial(rom: &[u8], pass_text: &str, time_limit: u128) {
     let mut cpu = CPU::new(bus);
 
     let start = Instant::now();
-    let mut output = String::new();
+    let mut output: Vec<u8> = vec![];
     loop {
         if start.elapsed().as_millis() > time_limit {
             panic!("Timeout");
@@ -37,9 +38,12 @@ fn test_serial(rom: &[u8], pass_text: &str, time_limit: u128) {
         cpu.tick(1).unwrap();
 
         if let Ok(c) = rx.try_recv() {
-            output.push(c as char);
-            if output.ends_with(pass_text) {
+            output.push(c);
+            if output.ends_with(&pass_text) {
                 return;
+            }
+            if output.ends_with(&fail_text) {
+                panic!("Test failed");
             }
         }
     }
