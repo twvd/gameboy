@@ -42,13 +42,13 @@ fn mbc1() {
 #[test]
 fn mbc5() {
     mooneye!(
-        //"../../tests/mooneye/emulator-only/mbc5/rom_16Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_1Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_2Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_32Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_4Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_512kb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_64Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc5/rom_8Mb.gb"
+        "../../tests/mooneye/emulator-only/mbc5/rom_16Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_1Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_2Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_32Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_4Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_512kb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_64Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc5/rom_8Mb.gb"
     );
 }

@@ -14,6 +14,7 @@ pub struct Mbc5 {
     rom_banksel: u16,
     ram: Vec<u8>,
     ram_banksel: u8,
+    rom_banks: usize,
 }
 
 impl Mbc5 {
@@ -23,15 +24,20 @@ impl Mbc5 {
             ram: vec![0; RAM_BANK_COUNT * RAM_BANK_SIZE],
             rom_banksel: 1,
             ram_banksel: 0,
+            rom_banks: 0,
         };
         cart.rom[0..rom.len()].copy_from_slice(rom);
+
+        // Keep this calculated in RAM because it gets looked up a lot.
+        cart.rom_banks = cart.get_rom_banks();
         cart
     }
 
     fn rom_translate(&self, addr: u16) -> usize {
         assert!(addr >= 0x4000);
 
-        let bankaddr: usize = ROM_BANK_SIZE * (self.rom_banksel as usize);
+        let bankaddr: usize =
+            ROM_BANK_SIZE * (self.rom_banksel as usize).rem_euclid(self.rom_banks);
         bankaddr + (addr as usize - 0x4000)
     }
 
@@ -89,21 +95,28 @@ impl BusMember for Mbc5 {
 
 #[cfg(test)]
 mod tests {
+    use super::super::cartridge::*;
     use super::*;
 
     use itertools::repeat_n;
 
     #[test]
     fn rom_bank_switching() {
-        let rom: Vec<u8> = (0u16..=(ROM_BANKS_MAX as u16))
+        let mut rom: Vec<u8> = (0u16..=(ROM_BANKS_MAX as u16))
             .flat_map(|i| repeat_n(i.to_le_bytes().into_iter(), ROM_BANK_SIZE / 2).flat_map(|n| n))
             .collect();
         assert_eq!(rom.len(), ROM_BANK_COUNT * ROM_BANK_SIZE);
+        rom[CARTTYPE_OFFSET] = CartridgeType::Mbc5 as u8;
+        rom[ROMSIZE_OFFSET] = 8; // 8 MB ROM
 
         let mut c = Mbc5::new(&rom);
 
         // Bank 0
         for i in 0u16..(ROM_BANK_SIZE as u16) {
+            if i == CARTTYPE_OFFSET as u16 || i == ROMSIZE_OFFSET as u16 {
+                assert_ne!(c.read(i), 0);
+                continue;
+            }
             assert_eq!(c.read(i), 0);
         }
         // Bank n default (1)
@@ -117,6 +130,10 @@ mod tests {
             c.write(0x3000, ((b & 0x100) >> 8) as u8);
             // Bank 0
             for i in 0..(ROM_BANK_SIZE as u16) {
+                if i == CARTTYPE_OFFSET as u16 || i == ROMSIZE_OFFSET as u16 {
+                    assert_ne!(c.read(i), 0);
+                    continue;
+                }
                 assert_eq!(c.read(i), 0);
             }
             // Bank n
@@ -135,7 +152,7 @@ mod tests {
         // Selecting bank 0 should actually select bank 0 on MBC5
         c.write(0x2000, 0);
         c.write(0x3000, 0);
-        for i in (0..ROM_BANK_SIZE).step_by(2) {
+        for i in (CARTHEADER_END..ROM_BANK_SIZE).step_by(2) {
             assert_eq!(c.read16(0x4000 + i as u16), 0x00);
         }
     }

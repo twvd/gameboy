@@ -10,11 +10,12 @@ use num_traits::FromPrimitive;
 
 use std::fmt;
 
-const TITLE_OFFSET: usize = 0x134;
-const TITLE_SIZE: usize = 16;
-const CARTTYPE_OFFSET: usize = 0x147;
-const ROMSIZE_OFFSET: usize = 0x148;
-const RAMSIZE_OFFSET: usize = 0x149;
+pub const TITLE_OFFSET: usize = 0x134;
+pub const TITLE_SIZE: usize = 16;
+pub const CARTTYPE_OFFSET: usize = 0x147;
+pub const ROMSIZE_OFFSET: usize = 0x148;
+pub const RAMSIZE_OFFSET: usize = 0x149;
+pub const CARTHEADER_END: usize = 0x150;
 
 #[derive(Debug, FromPrimitive)]
 pub enum CartridgeType {
@@ -63,11 +64,11 @@ pub trait Cartridge: BusMember {
         CartridgeType::from_u8(self.read(CARTTYPE_OFFSET as u16)).unwrap()
     }
 
-    fn get_rom_size(&self) -> u32 {
+    fn get_rom_size(&self) -> usize {
         32 * 1024 * (1 << self.read(ROMSIZE_OFFSET as u16) as u32)
     }
 
-    fn get_rom_banks(&self) -> u32 {
+    fn get_rom_banks(&self) -> usize {
         self.get_rom_size() / (16 * 1024)
     }
 
@@ -101,7 +102,7 @@ impl fmt::Display for dyn Cartridge {
             self.get_type(),
             self.get_rom_size(),
             self.get_rom_banks(),
-            self.get_rom_banks(),
+            self.get_rom_banks() - 1,
             self.get_ram_size(),
             self.get_ram_banks()
         )
