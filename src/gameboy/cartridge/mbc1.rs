@@ -16,6 +16,11 @@ pub struct Mbc1 {
     rom_banksel: u8,
     ram: Vec<u8>,
     ram_banksel: u8,
+
+    ram_enable: bool,
+    bank_advanced: bool,
+    rom_banks: usize,
+    ram_banks: usize,
 }
 
 impl Mbc1 {
@@ -25,7 +30,13 @@ impl Mbc1 {
             ram: vec![0; RAM_BANK_COUNT * RAM_BANK_SIZE],
             rom_banksel: 1,
             ram_banksel: 0,
+            ram_enable: false,
+            bank_advanced: false,
+            rom_banks: 0,
+            ram_banks: 0,
         };
+        cart.rom_banks = cart.get_rom_banks();
+        cart.ram_banks = cart.get_ram_banks();
         cart.rom[0..rom.len()].copy_from_slice(rom);
         cart
     }
@@ -40,7 +51,12 @@ impl Mbc1 {
     fn ram_translate(&self, addr: u16) -> usize {
         assert!(addr >= 0xA000);
 
-        let bankaddr: usize = RAM_BANK_SIZE * (self.ram_banksel as usize);
+        let bankaddr: usize = if self.bank_advanced {
+            RAM_BANK_SIZE * (self.ram_banksel as usize).rem_euclid(self.get_ram_banks())
+        } else {
+            // Always bank 0 in mode 0
+            0
+        };
         bankaddr + (addr as usize - 0xA000)
     }
 }
@@ -48,8 +64,10 @@ impl Mbc1 {
 impl Cartridge for Mbc1 {
     fn dump_state(&self) -> String {
         format!(
-            "ROM bank: {:02X} - RAM bank: {:02X}",
-            self.rom_banksel, self.ram_banksel
+            "ROM: {:02X} - RAM : {:02X} - Mode: {}",
+            self.rom_banksel,
+            self.ram_banksel,
+            if self.bank_advanced { 1 } else { 0 }
         )
     }
 }
@@ -62,7 +80,13 @@ impl BusMember for Mbc1 {
             // ROM - Bank 1..n
             0x4000..=0x7FFF => self.rom[self.rom_translate(addr)],
             // RAM - Bank 0..=3
-            0xA000..=0xBFFF => self.ram[self.ram_translate(addr)],
+            0xA000..=0xBFFF => {
+                if self.ram_enable {
+                    self.ram[self.ram_translate(addr)]
+                } else {
+                    0xFF
+                }
+            }
 
             _ => unreachable!(),
         }
@@ -71,19 +95,21 @@ impl BusMember for Mbc1 {
     fn write(&mut self, addr: u16, val: u8) {
         match addr {
             // RAM enable
-            0x0000..=0x1FFF => (),
+            0x0000..=0x1FFF => self.ram_enable = val & 0x0F == 0x0A,
             // ROM bank select
             0x2000..=0x3FFF => {
                 self.rom_banksel = cmp::max(val & 0x1F, 1) | (val & !0x1F) & ROM_BANKS_MAX as u8
             }
             // RAM/upper ROM bank select
-            0x4000..=0x5FFF => self.ram_banksel = val & RAM_BANKS_MAX as u8,
+            0x4000..=0x5FFF => self.ram_banksel = val & 0x03,
             // Banking mode select
-            0x6000..=0x7FFF => todo!(),
+            0x6000..=0x7FFF => self.bank_advanced = val & 1 == 1,
             // RAM - Bank 0..=3
             0xA000..=0xBFFF => {
-                let tr_addr = self.ram_translate(addr);
-                self.ram[tr_addr] = val
+                if self.ram_enable {
+                    let tr_addr = self.ram_translate(addr);
+                    self.ram[tr_addr] = val;
+                }
             }
 
             _ => unreachable!(),
@@ -93,6 +119,7 @@ impl BusMember for Mbc1 {
 
 #[cfg(test)]
 mod tests {
+    use super::super::cartridge::*;
     use super::*;
 
     use itertools::repeat_n;
@@ -150,7 +177,13 @@ mod tests {
 
     #[test]
     fn ram_bank_switching() {
-        let mut c = Mbc1::new(&[]);
+        let mut rom: [u8; CARTHEADER_END] = [0; CARTHEADER_END];
+        rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1Ram as u8;
+        rom[RAMSIZE_OFFSET] = 0x03; // 32kb RAM
+        let mut c = Mbc1::new(&rom);
+
+        c.write(0x0000, 0x0A); // RAM enable
+        c.write(0x6000, 1); // Banking mode 1
 
         for b in 0u8..(RAM_BANK_COUNT as u8) {
             c.write(0x4000, b);
@@ -170,5 +203,31 @@ mod tests {
         // Masking
         c.write(0x4000, RAM_BANK_COUNT as u8);
         assert_eq!(c.read(0xA000 as u16), 1);
+    }
+
+    #[test]
+    fn ram_enable() {
+        let mut rom: [u8; CARTHEADER_END] = [0; CARTHEADER_END];
+        rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1Ram as u8;
+        rom[RAMSIZE_OFFSET] = 0x03; // 32kb RAM
+        let mut c = Mbc1::new(&rom);
+
+        assert_eq!(c.read(0xA000), 0xFF);
+        c.write(0xA000, 0xAB);
+        assert_eq!(c.read(0xA000), 0xFF);
+
+        c.write(0x0000, 0x0A); // RAM enable
+                               // Earlier write should not have had any effect.
+        assert_eq!(c.read(0xA000), 0x00);
+        c.write(0xA000, 0xAB);
+        assert_eq!(c.read(0xA000), 0xAB);
+
+        // Disabling and enabling should reveal the original
+        // data and writing while disabled shouldn't overwrite it.
+        c.write(0x0000, 0x00); // RAM disable
+        assert_eq!(c.read(0xA000), 0xFF);
+        c.write(0xA000, 0xCD);
+        c.write(0x0000, 0x0A); // RAM enable
+        assert_eq!(c.read(0xA000), 0xAB);
     }
 }

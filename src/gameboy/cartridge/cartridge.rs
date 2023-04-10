@@ -72,7 +72,7 @@ pub trait Cartridge: BusMember {
         self.get_rom_size() / (16 * 1024)
     }
 
-    fn get_ram_size(&self) -> u32 {
+    fn get_ram_size(&self) -> usize {
         match self.read(RAMSIZE_OFFSET as u16) {
             0 => 0,
             2 => 8 * 1024,
@@ -86,7 +86,7 @@ pub trait Cartridge: BusMember {
         }
     }
 
-    fn get_ram_banks(&self) -> u32 {
+    fn get_ram_banks(&self) -> usize {
         self.get_ram_size() / (8 * 1024)
     }
 
