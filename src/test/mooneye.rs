@@ -36,12 +36,12 @@ fn mbc1_ram() {
 fn mbc1_rom() {
     mooneye!(
         //"../../tests/mooneye/emulator-only/mbc1/multicart_rom_8Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_16Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_1Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_2Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_4Mb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_512kb.gb",
-        //"../../tests/mooneye/emulator-only/mbc1/rom_8Mb.gb"
+        "../../tests/mooneye/emulator-only/mbc1/rom_16Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc1/rom_1Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc1/rom_2Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc1/rom_4Mb.gb",
+        "../../tests/mooneye/emulator-only/mbc1/rom_512kb.gb",
+        "../../tests/mooneye/emulator-only/mbc1/rom_8Mb.gb"
     );
 }
 
