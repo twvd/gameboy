@@ -2933,7 +2933,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 0,A (2), Z 0 1 -
@@ -3000,7 +3000,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 1,A (2), Z 0 1 -
@@ -3067,7 +3067,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 2,A (2), Z 0 1 -
@@ -3134,7 +3134,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 3,A (2), Z 0 1 -
@@ -3201,7 +3201,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 4,A (2), Z 0 1 -
@@ -3268,7 +3268,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 5,A (2), Z 0 1 -
@@ -3335,7 +3335,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 6,A (2), Z 0 1 -
@@ -3402,7 +3402,7 @@ pub const INSTRUCTIONS_CB: [InstructionDef; 256] = [
             Operand::RegisterIndirect(Register::HL),
         ],
         len: 2,
-        cycles: [16, 16],
+        cycles: [12, 12],
         func: CPU::op_bit,
     },
     // BIT 7,A (2), Z 0 1 -

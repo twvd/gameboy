@@ -109,3 +109,13 @@ fn cpu_instrs_11() {
         30000,
     );
 }
+
+#[test]
+fn instr_timing() {
+    test_serial(
+        include_bytes!("../../tests/blargg/instr_timing/instr_timing.gb"),
+        b"Passed",
+        b"Failed",
+        30000,
+    );
+}
