@@ -8,6 +8,7 @@ use num_traits::FromPrimitive;
 
 const TAC_ENABLE: u8 = 1 << 2;
 const TAC_DIV_MASK: u8 = 0x03;
+const TAC_MASK: u8 = 0x07;
 
 #[derive(FromPrimitive)]
 enum TimerInput {
@@ -44,15 +45,19 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new() -> Self {
+    pub fn from_div(div: u8) -> Self {
         Self {
             cycles: 0,
-            div: 0,
+            div,
             tima: 0,
             tma: 0,
             tac: 0,
             intreq: false,
         }
+    }
+
+    pub fn new() -> Self {
+        Self::from_div(0)
     }
 
     pub fn get_clr_intreq(&mut self) -> bool {
@@ -75,7 +80,7 @@ impl BusMember for Timer {
             0xFF06 => self.tma,
 
             // TAC - Timer control
-            0xFF07 => self.tac,
+            0xFF07 => self.tac | !TAC_MASK,
 
             _ => unreachable!(),
         }
@@ -92,7 +97,7 @@ impl BusMember for Timer {
             0xFF06 => self.tma = val,
 
             // TAC - Timer control
-            0xFF07 => self.tac = val,
+            0xFF07 => self.tac = val & TAC_MASK,
 
             _ => unreachable!(),
         }

@@ -3,7 +3,7 @@ use super::test_serial;
 macro_rules! mooneye {
     ( $( $x:expr ),* $(,)? ) => {
         {
-			$(
+            $(
 				println!("Testing {}...", $x);
 				test_mooneye(include_bytes!($x));
 			)*
@@ -18,6 +18,20 @@ fn test_mooneye(rom: &[u8]) {
         &[0x42, 0x42, 0x42, 0x42, 0x42, 0x42],
         120000,
     )
+}
+
+#[test]
+fn boot() {
+    mooneye!(
+        "../../tests/mooneye/acceptance/boot_regs-dmgABC.gb",
+        //"../../tests/mooneye/acceptance/boot_div-dmgABCmgb.gb",
+        //"../../tests/mooneye/acceptance/boot_hwio-dmgABCmgb.gb",
+    );
+}
+
+#[test]
+fn instr_daa() {
+    mooneye!("../../tests/mooneye/acceptance/instr/daa.gb",);
 }
 
 #[test]

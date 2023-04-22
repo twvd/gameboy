@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::input::{Button, Input};
 
@@ -25,9 +25,14 @@ impl CursesInput {
 
         Self {
             window,
-            press_time: RefCell::new(BTreeMap::from_iter(
-                Button::iter().map(|e| (e, Instant::now())),
-            )),
+            press_time: RefCell::new(BTreeMap::from_iter(Button::iter().map(|e| {
+                (
+                    e,
+                    Instant::now()
+                        .checked_sub(Duration::from_millis(Self::KEYDOWN_TIME as u64))
+                        .unwrap(),
+                )
+            }))),
         }
     }
 

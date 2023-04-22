@@ -14,6 +14,8 @@ use std::io;
 use std::io::Write;
 use std::sync::mpsc;
 
+const IF_MASK: u8 = 0x1F;
+
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
     cart: Box<dyn Cartridge>,
@@ -59,10 +61,10 @@ impl Gameboybus {
             ie: 0,
 
             lcd,
-            timer: Timer::new(),
+            timer: Timer::from_div(0xAC), // Value after boot ROM
             joypad: Joypad::new(input),
 
-            intflags: 0,
+            intflags: cpu::INT_VBLANK, // VBlank is set after boot ROM
             serialbuffer: 0,
             serial_output: false,
             serial_channel: None,
@@ -139,13 +141,13 @@ impl BusMember for Gameboybus {
             0xFF01 => self.serialbuffer,
 
             // I/O - Serial transfer control
-            0xFF02 => 0,
+            0xFF02 => 0x7E,
 
             // I/O - Timer
             0xFF04..=0xFF07 => self.timer.read(addr as u16),
 
             // IF - interrupt flags
-            0xFF0F => self.intflags,
+            0xFF0F => self.intflags | !IF_MASK,
 
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => 0,
@@ -227,7 +229,7 @@ impl BusMember for Gameboybus {
             0xFF04..=0xFF07 => self.timer.write(addr as u16, val),
 
             // IF - Interrupt Flags
-            0xFF0F => self.intflags = val,
+            0xFF0F => self.intflags = val & IF_MASK,
 
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => (),

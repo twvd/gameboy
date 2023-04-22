@@ -1,5 +1,6 @@
 use crate::input::input::{Button, Input};
 
+const JOYPAD_UNUSED: u8 = (1 << 7) | (1 << 6);
 const JOYPAD_SELECT_MASK: u8 = 0x30;
 const JOYPAD_SELECT_ACTION: u8 = 1 << 5;
 const JOYPAD_SELECT_DIRECTION: u8 = 1 << 4;
@@ -17,10 +18,7 @@ pub struct Joypad {
 
 impl Joypad {
     pub fn new(input: Box<dyn Input>) -> Self {
-        Self {
-            input,
-            select: JOYPAD_SELECT_MASK,
-        }
+        Self { input, select: 0 }
     }
 
     fn read_bit(&self, b: Button, bit: u8) -> u8 {
@@ -32,7 +30,8 @@ impl Joypad {
     }
 
     pub fn read(&self) -> u8 {
-        self.select
+        JOYPAD_UNUSED
+            | self.select
             | match !self.select & JOYPAD_SELECT_MASK {
                 JOYPAD_SELECT_ACTION => {
                     self.read_bit(Button::Start, JOYPAD_IN_DOWN_START)
