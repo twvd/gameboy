@@ -1146,8 +1146,11 @@ impl CPU {
         }
 
         // value = address - 2.
-        let rel_addr = instr.imms8(0)?.wrapping_add(2);
-        let new_pc = self.regs.pc.wrapping_add_signed(rel_addr.into());
+        let new_pc = self
+            .regs
+            .pc
+            .wrapping_add_signed(instr.imms8(0)?.into())
+            .wrapping_add(2);
         Ok(OpOk::branch(self, instr, new_pc))
     }
 
@@ -1606,6 +1609,16 @@ mod tests {
 
         let c = run(&[0x18, 10 - 2]); // JR 10
         assert_eq!(c.regs.pc, 10);
+    }
+
+    #[test]
+    fn op_jr_overflow() {
+        // Regression test for overflow bug
+        let c = run(&[0x18, 127]); // JR 127
+        assert_eq!(c.regs.pc, 129);
+
+        let c = run(&[0x18, 128]); // JR -128
+        assert_eq!(c.regs.pc, 0u16.wrapping_sub(126));
     }
 
     #[test]
