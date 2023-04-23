@@ -550,6 +550,13 @@ impl LCDController {
 
 impl Tickable for LCDController {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
+        if self.lcdc & LCDC_ENABLE == 0 {
+            // PPU disabled, restart frame
+            self.dots = 0;
+            self.ly = 0;
+            return Ok(ticks);
+        }
+
         let old_mode = self.get_stat_mode();
 
         // TODO this may skip interrupts on many ticks?
@@ -772,6 +779,30 @@ mod tests {
         assert!(!c.get_clr_intreq_vblank());
 
         c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_vblank());
+    }
+
+    #[test]
+    fn int_vblank_lcdc_disable() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+
+        c.write_io(0xFF40, LCDC_ENABLE);
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_vblank());
+
+        for _ in 0..(LCDController::DOTS_PER_LINE * LCDController::SCANLINES) {
+            c.tick(1).unwrap();
+        }
+        assert!(c.get_clr_intreq_vblank());
+        assert!(!c.get_clr_intreq_vblank());
+
+        c.write_io(0xFF40, 0);
+        c.tick(1).unwrap();
+        assert!(!c.get_clr_intreq_vblank());
+
+        for _ in 0..(LCDController::DOTS_PER_LINE * LCDController::SCANLINES) {
+            c.tick(1).unwrap();
+        }
         assert!(!c.get_clr_intreq_vblank());
     }
 }
