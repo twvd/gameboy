@@ -164,10 +164,7 @@ impl BusMember for Gameboybus {
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
 
             // Other I/O registers
-            0xFF00..=0xFF7F => {
-                //println!("Read from unknown I/O address {:04X}", addr);
-                0xFF
-            }
+            0xFF00..=0xFF7F => 0xFF,
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr],
@@ -254,7 +251,7 @@ impl BusMember for Gameboybus {
                 self.lcd.write_io(addr as u16, val)
             }
             // Other I/O registers
-            0xFF00..=0xFF7F => (), //println!("Write to unknown I/O address {:04X}", addr),
+            0xFF00..=0xFF7F => (),
 
             // High RAM
             0xFF80..=0xFFFE => self.hram[addr] = val,
@@ -283,23 +280,38 @@ impl fmt::Display for Gameboybus {
     }
 }
 
-// TODO fix broken tests
-#[cfg(ignore)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::display::display::NullDisplay;
+    use crate::gameboy::cartridge::romonly::RomOnly;
+    use crate::gameboy::lcd::LCDController;
+    use crate::input::input::NullInput;
+
+    fn gbbus() -> Gameboybus {
+        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let lcd = LCDController::new(Box::new(NullDisplay::new()));
+        let input = Box::new(NullInput::new());
+        Gameboybus::new(cart, None, lcd, input)
+    }
+
+    fn gbbus_bootrom() -> Gameboybus {
+        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let lcd = LCDController::new(Box::new(NullDisplay::new()));
+        let bootrom = [0xBB_u8; 256];
+        let input = Box::new(NullInput::new());
+        Gameboybus::new(cart, Some(&bootrom), lcd, input)
+    }
 
     #[test]
     fn bootrom() {
-        let cart = [0xAA_u8; 32 * 1024];
-        let bootrom = [0xBB_u8; 256];
-
-        let b = Gameboybus::new(&cart, Some(&bootrom));
+        let b = gbbus_bootrom();
         for i in 0..=0xFF {
             assert_eq!(b.read(i), 0xBB);
         }
         assert_eq!(b.read(0x0100), 0xAA);
 
-        let b = Gameboybus::new(&cart, None);
+        let b = gbbus();
         for i in 0..=0xFF {
             assert_eq!(b.read(i), 0xAA);
         }
@@ -308,10 +320,7 @@ mod tests {
 
     #[test]
     fn bootrom_disable() {
-        let cart = [0xAA_u8; 32 * 1024];
-        let bootrom = [0xBB_u8; 256];
-
-        let mut b = Gameboybus::new(&cart, Some(&bootrom));
+        let mut b = gbbus_bootrom();
         for i in 0..=0xFF {
             assert_eq!(b.read(i), 0xBB);
         }
