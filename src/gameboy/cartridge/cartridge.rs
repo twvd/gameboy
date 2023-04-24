@@ -12,6 +12,7 @@ use std::fmt;
 
 pub const TITLE_OFFSET: usize = 0x134;
 pub const TITLE_SIZE: usize = 16;
+pub const CGB_OFFSET: usize = 0x143;
 pub const CARTTYPE_OFFSET: usize = 0x147;
 pub const ROMSIZE_OFFSET: usize = 0x148;
 pub const RAMSIZE_OFFSET: usize = 0x149;
@@ -83,6 +84,15 @@ pub trait Cartridge: BusMember {
                 "Unknown RAM size value {}",
                 self.read(RAMSIZE_OFFSET as u16)
             ),
+        }
+    }
+
+    fn is_cgb(&self) -> bool {
+        match self.read(CGB_OFFSET as u16) {
+            0x80 // CGB + DMG compatible
+            | 0xC0 // CGB only
+            => true,
+            _ => false
         }
     }
 

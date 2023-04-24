@@ -63,6 +63,9 @@ pub struct LCDController {
     /// OAM memory
     oam: OAMTable,
 
+    /// Gameboy Color mode
+    cgb: bool,
+
     /// VRAM memory
     vram: [u8; VRAM_SIZE],
 
@@ -128,9 +131,10 @@ impl LCDController {
     /// Amount of dots in 'transfer' mode (actually 168 to 291)
     const TRANSFER_PERIOD: u128 = 200;
 
-    pub fn new(display: Box<dyn Display>) -> Self {
+    pub fn new(display: Box<dyn Display>, cgb: bool) -> Self {
         Self {
             output: display,
+            cgb,
             oam: OAMTable::new(),
             vram: [0; VRAM_SIZE],
 
@@ -660,7 +664,7 @@ mod tests {
             }
         }
 
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         assert_eq!(c.get_stat_mode(), LCDStatMode::Search);
 
         for _ in 0..LCDController::VBLANK_START {
@@ -676,7 +680,7 @@ mod tests {
 
     #[test]
     fn vblank() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         for _ in 0..(LCD_H * LCDController::DOTS_PER_LINE as usize) {
             assert!(!c.in_vblank());
             c.tick(1).unwrap();
@@ -686,7 +690,7 @@ mod tests {
 
     #[test]
     fn int_stat_lyc() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write_io(0xFF45, 10);
         c.write_io(0xFF41, LCDS_INT_LYC);
 
@@ -708,7 +712,7 @@ mod tests {
 
     #[test]
     fn int_stat_vblank() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write_io(0xFF41, LCDS_INT_STAT_VBLANK);
 
         c.tick(1).unwrap();
@@ -726,7 +730,7 @@ mod tests {
 
     #[test]
     fn int_stat_hblank() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write_io(0xFF41, LCDS_INT_STAT_HBLANK);
 
         c.tick(1).unwrap();
@@ -744,7 +748,7 @@ mod tests {
 
     #[test]
     fn int_stat_oam() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
         while c.get_stat_mode() == LCDStatMode::Search {
             c.tick(1).unwrap();
@@ -767,7 +771,7 @@ mod tests {
 
     #[test]
     fn int_vblank() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_vblank());
@@ -784,7 +788,7 @@ mod tests {
 
     #[test]
     fn int_vblank_lcdc_disable() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()));
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
         c.write_io(0xFF40, LCDC_ENABLE);
         c.tick(1).unwrap();

@@ -18,6 +18,8 @@ const IF_MASK: u8 = 0x1F;
 
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
+    cgb: bool,
+
     cart: Box<dyn Cartridge>,
     boot_rom: [u8; 256],
 
@@ -50,8 +52,10 @@ impl Gameboybus {
         bootrom: Option<&[u8]>,
         lcd: LCDController,
         input: Box<dyn Input>,
+        cgb: bool,
     ) -> Self {
         let mut bus = Gameboybus {
+            cgb,
             cart,
             boot_rom: [0; 256],
             boot_rom_enabled: false,
@@ -290,17 +294,17 @@ mod tests {
 
     fn gbbus() -> Gameboybus {
         let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
-        let lcd = LCDController::new(Box::new(NullDisplay::new()));
+        let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let input = Box::new(NullInput::new());
-        Gameboybus::new(cart, None, lcd, input)
+        Gameboybus::new(cart, None, lcd, input, false)
     }
 
     fn gbbus_bootrom() -> Gameboybus {
         let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
-        let lcd = LCDController::new(Box::new(NullDisplay::new()));
+        let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let bootrom = [0xBB_u8; 256];
         let input = Box::new(NullInput::new());
-        Gameboybus::new(cart, Some(&bootrom), lcd, input)
+        Gameboybus::new(cart, Some(&bootrom), lcd, input, false)
     }
 
     #[test]

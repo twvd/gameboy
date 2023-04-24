@@ -54,6 +54,10 @@ struct Args {
     /// Output serial output to terminal
     #[arg(short, long)]
     serial_out: bool,
+
+    /// Gameboy Color mode
+    #[arg(short, long)]
+    cgb: bool,
 }
 
 fn main() -> Result<()> {
@@ -67,6 +71,21 @@ fn main() -> Result<()> {
     let cartridge = cartridge::load(&rom);
     println!("Cartridge: {}", cartridge);
 
+    let cgb = if !args.cgb {
+        false
+    } else if !cartridge.is_cgb() {
+        println!("WARNING: Ignoring CGB mode, not a CGB-compatible cartridge");
+        false
+    } else {
+        true
+    };
+
+    if cgb {
+        println!("Mode: Gameboy Color (CGB)");
+    } else {
+        println!("Mode: Gameboy (DMG)");
+    }
+
     if !args.no_display {
         let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
         input = Box::new(cdisplay.create_input());
@@ -76,7 +95,7 @@ fn main() -> Result<()> {
         input = Box::new(NullInput::new());
     }
 
-    let lcd = LCDController::new(display);
+    let lcd = LCDController::new(display, cgb);
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
@@ -87,9 +106,10 @@ fn main() -> Result<()> {
                 Some(bootrom.as_slice()),
                 lcd,
                 input,
+                cgb,
             ))
         } else {
-            Box::new(Gameboybus::new(cartridge, None, lcd, input))
+            Box::new(Gameboybus::new(cartridge, None, lcd, input, cgb))
         };
         if args.serial_out {
             b.enable_serial_output();
@@ -105,7 +125,7 @@ fn main() -> Result<()> {
         bus.write(0xFF44, 0x90);
     }
 
-    let mut cpu = CPU::new(bus);
+    let mut cpu = CPU::new(bus, cgb);
 
     loop {
         if args.verbose && cpu.bus.read(0xFF50) == 1 {

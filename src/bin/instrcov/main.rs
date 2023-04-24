@@ -25,7 +25,7 @@ fn main() {
         panic::set_hook(Box::new(|_| {}));
         let result = panic::catch_unwind(|| {
             let bus = Testbus::from(&opcode);
-            let mut cpu = CPU::new(Box::new(bus));
+            let mut cpu = CPU::new(Box::new(bus), false);
             cpu.step().unwrap();
         });
         let _ = panic::take_hook();

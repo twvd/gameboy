@@ -64,6 +64,9 @@ impl OpOk {
 
 /// Gameboy CPU
 pub struct CPU {
+    /// Gameboy Color mode
+    cgb: bool,
+
     /// Address bus
     pub bus: Box<dyn Bus>,
 
@@ -90,8 +93,9 @@ impl CPU {
     /// Boot ROM disable register address on address bus
     const BUS_BOOTROM_DISABLE: u16 = 0xFF50;
 
-    pub fn new(bus: Box<dyn Bus>) -> Self {
+    pub fn new(bus: Box<dyn Bus>, cgb: bool) -> Self {
         let mut c = Self {
+            cgb,
             bus,
             regs: RegisterFile::new(),
             cycles: 0,
@@ -106,7 +110,11 @@ impl CPU {
 
     /// Set up registers to the expected state after boot
     fn setup_postboot(&mut self) -> Result<()> {
-        self.regs.write(Register::A, 0x01)?;
+        if self.cgb {
+            self.regs.write(Register::A, 0x11)?;
+        } else {
+            self.regs.write(Register::A, 0x01)?;
+        }
         self.regs.write(Register::F, 0xB0)?;
         self.regs.write(Register::B, 0x00)?;
         self.regs.write(Register::C, 0x13)?;
@@ -1367,7 +1375,7 @@ mod tests {
 
     fn cpu(code: &[u8]) -> CPU {
         let bus = Testbus::from(code);
-        CPU::new(Box::new(bus))
+        CPU::new(Box::new(bus), false)
     }
 
     fn cpu_run(cpu: &mut CPU) {

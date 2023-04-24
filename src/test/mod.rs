@@ -20,14 +20,14 @@ fn test_serial(rom: &[u8], pass_text: &[u8], fail_text: &[u8], time_limit: u128)
     let cart = cartridge::load(rom);
     let display = Box::new(NullDisplay::new());
     let input = Box::new(NullInput::new());
-    let lcd = LCDController::new(display);
+    let lcd = LCDController::new(display, false);
 
-    let mut bus = Box::new(Gameboybus::new(cart, None, lcd, input));
+    let mut bus = Box::new(Gameboybus::new(cart, None, lcd, input, false));
     let (tx, rx) = mpsc::channel::<u8>();
     bus.enable_serial_output();
     bus.enable_serial_channel(tx);
 
-    let mut cpu = CPU::new(bus);
+    let mut cpu = CPU::new(bus, false);
 
     let start = Instant::now();
     let mut output: Vec<u8> = vec![];
@@ -53,10 +53,10 @@ fn test_display(rom: &[u8], pass_hash: &[u8], time_limit: u128) {
     let cart = cartridge::load(rom);
     let (display, dispstatus) = TestDisplay::new(LCD_W, LCD_H);
     let input = Box::new(NullInput::new());
-    let lcd = LCDController::new(display);
+    let lcd = LCDController::new(display, false);
 
-    let bus = Box::new(Gameboybus::new(cart, None, lcd, input));
-    let mut cpu = CPU::new(bus);
+    let bus = Box::new(Gameboybus::new(cart, None, lcd, input, false));
+    let mut cpu = CPU::new(bus, false);
 
     let start = Instant::now();
     loop {
