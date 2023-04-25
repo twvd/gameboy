@@ -9,6 +9,7 @@ use crate::tickable::Tickable;
 
 use anyhow::Result;
 
+use std::cmp;
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -25,7 +26,7 @@ pub struct Gameboybus {
 
     boot_rom_enabled: bool,
 
-    wram: [u8; u16::MAX as usize + 1],
+    wram: [u8; Self::WRAM_SIZE * Self::WRAM_BANKS],
     hram: [u8; u16::MAX as usize + 1],
     ie: u8,
 
@@ -44,9 +45,15 @@ pub struct Gameboybus {
 
     /// Serial output channel (for tests)
     serial_channel: Option<mpsc::Sender<u8>>,
+
+    /// WRAM bank select (CGB only)
+    wram_banksel: u8,
 }
 
 impl Gameboybus {
+    const WRAM_SIZE: usize = 0x1000;
+    const WRAM_BANKS: usize = 8;
+
     pub fn new(
         cart: Box<dyn Cartridge>,
         bootrom: Option<&[u8]>,
@@ -60,7 +67,8 @@ impl Gameboybus {
             boot_rom: [0; 256],
             boot_rom_enabled: false,
 
-            wram: [0; u16::MAX as usize + 1],
+            wram: [0; Self::WRAM_SIZE * Self::WRAM_BANKS],
+            wram_banksel: 1,
             hram: [0; u16::MAX as usize + 1],
             ie: 0,
 
@@ -122,15 +130,19 @@ impl BusMember for Gameboybus {
             // External (cartridge) RAM
             0xA000..=0xBFFF => self.cart.read(addr as u16),
 
-            // Working RAM (fixed portion)
-            0xC000..=0xCFFF => self.wram[addr],
+            // Working RAM (bank 0)
+            0xC000..=0xCFFF => self.wram[addr - 0xC000],
 
-            // Working RAM (switchable on CGB)
-            // TODO bank switching
-            0xD000..=0xDFFF => self.wram[addr],
+            // Working RAM (bank 1 (DMG) / bank 1-7 (CGB))
+            0xD000..=0xDFFF => {
+                self.wram[addr - 0xD000 + self.wram_banksel as usize * Self::WRAM_SIZE]
+            }
 
             // Echo RAM
-            0xE000..=0xFDFF => self.wram[addr - 0x2000],
+            0xE000..=0xEFFF => self.wram[addr - 0xE000],
+            0xF000..=0xFDFF => {
+                self.wram[addr - 0xF000 + self.wram_banksel as usize * Self::WRAM_SIZE]
+            }
 
             // Sprite Attribute Table (OAM)
             0xFE00..=0xFE9F => self.lcd.read_oam(addr - 0xFE00),
@@ -167,6 +179,9 @@ impl BusMember for Gameboybus {
             // I/O - LCD I/O
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
 
+            // CGB - SVBK / WRAM bank select
+            0xFF70 if self.cgb => self.wram_banksel & 0x07,
+
             // Other I/O registers
             0xFF00..=0xFF7F => 0xFF,
 
@@ -193,15 +208,19 @@ impl BusMember for Gameboybus {
             // External (cartridge) RAM
             0xA000..=0xBFFF => self.cart.write(addr as u16, val),
 
-            // Working RAM (fixed portion)
-            0xC000..=0xCFFF => self.wram[addr] = val,
+            // Working RAM (bank 0)
+            0xC000..=0xCFFF => self.wram[addr - 0xC000] = val,
 
-            // Working RAM (switchable on CGB)
-            // TODO bank switching
-            0xD000..=0xDFFF => self.wram[addr] = val,
+            // Working RAM (bank 1 (DMG) / bank 1-7 (CGB))
+            0xD000..=0xDFFF => {
+                self.wram[addr - 0xD000 + self.wram_banksel as usize * Self::WRAM_SIZE] = val
+            }
 
             // Echo RAM
-            0xE000..=0xFDFF => self.wram[addr - 0x2000] = val,
+            0xE000..=0xEFFF => self.wram[addr - 0xE000] = val,
+            0xF000..=0xFDFF => {
+                self.wram[addr - 0xF000 + self.wram_banksel as usize * Self::WRAM_SIZE] = val
+            }
 
             // Sprite Attribute Table (OAM)
             0xFE00..=0xFE9F => self.lcd.write_oam(addr - 0xFE00, val),
@@ -254,6 +273,10 @@ impl BusMember for Gameboybus {
             0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => {
                 self.lcd.write_io(addr as u16, val)
             }
+
+            // CGB - SVBK / WRAM bank select
+            0xFF70 if self.cgb => self.wram_banksel = cmp::max(1, val) & 0x07,
+
             // Other I/O registers
             0xFF00..=0xFF7F => (),
 
@@ -297,6 +320,13 @@ mod tests {
         let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let input = Box::new(NullInput::new());
         Gameboybus::new(cart, None, lcd, input, false)
+    }
+
+    fn gbbus_cgb() -> Gameboybus {
+        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
+        let input = Box::new(NullInput::new());
+        Gameboybus::new(cart, None, lcd, input, true)
     }
 
     fn gbbus_bootrom() -> Gameboybus {
@@ -350,5 +380,138 @@ mod tests {
             assert_eq!(b.read(i), 0xAA);
         }
         assert_eq!(b.read(0x0100), 0xAA);
+    }
+
+    #[test]
+    fn wram() {
+        for b in 0xC000..=0xDFFF {
+            let mut bus = gbbus();
+            bus.write(b, 0xAB);
+            for n in 0xC000..=0xDFFF {
+                if n == b {
+                    assert_eq!(bus.read(n), 0xAB);
+                } else {
+                    assert_eq!(bus.read(n), 0x00);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cgb_wram_bank0() {
+        for b in 0xC000..=0xCFFF {
+            let mut bus = gbbus_cgb();
+            bus.write(b, 0xAB);
+            for bank in 1..8 {
+                bus.write(0xFF70, bank);
+                for n in 0xC000..=0xDFFF {
+                    if n == b {
+                        assert_eq!(bus.read(n), 0xAB);
+                    } else {
+                        assert_eq!(bus.read(n), 0x00);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dmg_wram_no_banks() {
+        for b in 0xD000..=0xDFFF {
+            let mut bus = gbbus();
+            bus.write(b, 0xAB);
+            for bank in 1..8 {
+                bus.write(0xFF70, bank);
+                for n in 0xC000..=0xDFFF {
+                    if n == b {
+                        assert_eq!(bus.read(n), 0xAB);
+                    } else {
+                        assert_eq!(bus.read(n), 0x00);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cgb_wram_banks() {
+        for test_bank in 1..8 {
+            for b in 0xD000..=0xDFFF {
+                let mut bus = gbbus_cgb();
+                bus.write(0xFF70, test_bank);
+                bus.write(b, 0xAB);
+                for bank in 1..8 {
+                    bus.write(0xFF70, bank);
+                    for n in 0xC000..=0xDFFF {
+                        if n == b && bank == test_bank {
+                            assert_eq!(bus.read(n), 0xAB);
+                        } else {
+                            assert_eq!(bus.read(n), 0x00);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dmg_echo_ram_read() {
+        let mut b = gbbus();
+        b.write(0xC000, 0xAB);
+        b.write(0xD000, 0xCD);
+
+        assert_eq!(b.read(0xE000), 0xAB);
+        assert_eq!(b.read(0xF000), 0xCD);
+
+        // Bank select has no effect on DMG
+        b.write(0xFF70, 4);
+        assert_eq!(b.read(0xF000), 0xCD);
+    }
+
+    #[test]
+    fn dmg_echo_ram_write() {
+        let mut b = gbbus();
+        b.write(0xE000, 0xAB);
+        b.write(0xF000, 0xCD);
+
+        assert_eq!(b.read(0xC000), 0xAB);
+        assert_eq!(b.read(0xD000), 0xCD);
+
+        // Bank select has no effect on DMG
+        b.write(0xFF70, 4);
+        b.write(0xF001, 0xEF);
+        b.write(0xFF70, 1);
+        assert_eq!(b.read(0xD001), 0xEF);
+    }
+
+    #[test]
+    fn cgb_echo_ram_read() {
+        let mut b = gbbus_cgb();
+        b.write(0xC000, 0xAB);
+        b.write(0xD000, 0xCD);
+
+        assert_eq!(b.read(0xE000), 0xAB);
+        assert_eq!(b.read(0xF000), 0xCD);
+
+        // Bank select
+        b.write(0xFF70, 4);
+        assert_ne!(b.read(0xF000), 0xCD);
+    }
+
+    #[test]
+    fn cgb_echo_ram_write() {
+        let mut b = gbbus_cgb();
+        b.write(0xE000, 0xAB);
+        b.write(0xF000, 0xCD);
+
+        assert_eq!(b.read(0xC000), 0xAB);
+        assert_eq!(b.read(0xD000), 0xCD);
+
+        // Bank select
+        b.write(0xFF70, 4);
+        b.write(0xF001, 0xEF);
+        assert_eq!(b.read(0xD001), 0xEF);
+        b.write(0xFF70, 1);
+        assert_ne!(b.read(0xD001), 0xEF);
     }
 }
