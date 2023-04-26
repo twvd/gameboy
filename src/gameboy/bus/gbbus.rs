@@ -46,8 +46,14 @@ pub struct Gameboybus {
     /// Serial output channel (for tests)
     serial_channel: Option<mpsc::Sender<u8>>,
 
-    /// WRAM bank select (CGB only)
+    /// CGB - WRAM bank select
     wram_banksel: u8,
+
+    /// CGB - VRAM DMA source address
+    vramdma_src: u16,
+
+    /// CGB - VRAM DMA destination address
+    vramdma_dest: u16,
 }
 
 impl Gameboybus {
@@ -80,6 +86,9 @@ impl Gameboybus {
             serialbuffer: 0,
             serial_output: false,
             serial_channel: None,
+
+            vramdma_src: 0,
+            vramdma_dest: 0,
         };
 
         if let Some(br) = bootrom {
@@ -177,9 +186,24 @@ impl BusMember for Gameboybus {
             0xFF46 => 0,
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
+            0xFF40..=0xFF4B | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
 
-            // CGB - SVBK / WRAM bank select
+            // CGB - HDMA1 - VRAM DMA source (MSB)
+            0xFF51 if self.cgb => (self.vramdma_src >> 8) as u8,
+
+            // CGB - HDMA2 - VRAM DMA source (LSB)
+            0xFF52 if self.cgb => (self.vramdma_src & 0xFF) as u8,
+
+            // CGB - HDMA3 - VRAM DMA destination (MSB)
+            0xFF53 if self.cgb => (self.vramdma_dest >> 8) as u8,
+
+            // CGB - HDMA4 - VRAM DMA destination (LSB)
+            0xFF54 if self.cgb => (self.vramdma_dest & 0xFF) as u8,
+
+            // CGB - HDMA5 - VRAM DMA length/mode/start
+            0xFF55 if self.cgb => 0xFF, // always return 'transfer completed'
+
+            // CGB - SVBK - WRAM bank select
             0xFF70 if self.cgb => self.wram_banksel & 0x07,
 
             // Other I/O registers
@@ -270,8 +294,32 @@ impl BusMember for Gameboybus {
             }
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF51..=0xFF55 | 0xFF68..=0xFF69 => {
-                self.lcd.write_io(addr as u16, val)
+            0xFF40..=0xFF4B | 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
+
+            // CGB - HDMA1 - VRAM DMA source (MSB)
+            0xFF51 if self.cgb => self.vramdma_src = ((val as u16) << 8) | self.vramdma_src & 0xFF,
+
+            // CGB - HDMA2 - VRAM DMA source (LSB)
+            0xFF52 if self.cgb => self.vramdma_src = self.vramdma_src & 0xFF00 | val as u16,
+
+            // CGB - HDMA3 - VRAM DMA destination (MSB)
+            0xFF53 if self.cgb => {
+                self.vramdma_dest = ((val as u16) << 8) | self.vramdma_dest & 0xFF
+            }
+
+            // CGB - HDMA4 - VRAM DMA destination (LSB)
+            0xFF54 if self.cgb => self.vramdma_dest = self.vramdma_dest & 0xFF00 | val as u16,
+
+            // CGB - HDMA5 - VRAM DMA length/mode/start
+            0xFF55 if self.cgb => {
+                let len = ((val & 0x7F) as u16 + 1) * 0x10;
+                // Ignore bit 7 (general/hblank DMA mode),
+                // we finish instantly anyway.
+                let src = self.vramdma_src & !0x000F;
+                let dest = (self.vramdma_dest & !0xE00F) | 0x8000;
+                for i in 0u16..len {
+                    self.write(dest.wrapping_add(i), self.read(src.wrapping_add(i)));
+                }
             }
 
             // CGB - SVBK / WRAM bank select
@@ -513,5 +561,87 @@ mod tests {
         assert_eq!(b.read(0xD001), 0xEF);
         b.write(0xFF70, 1);
         assert_ne!(b.read(0xD001), 0xEF);
+    }
+
+    #[test]
+    fn cgb_vram_dma() {
+        let testex = |len, start: u16, end, src: u16, dest: u16| {
+            let mut b = gbbus_cgb();
+
+            // Pattern to WRAM
+            for i in 0xC000_u16..0xD000 {
+                b.write(i, 0xAB);
+            }
+
+            // Check initial VRAM
+            for i in 0x8000..=0x9FFF {
+                assert_eq!(b.read(i), 0);
+            }
+
+            // DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            // Run transfer
+            b.write16(0xFF51, src.to_be());
+            b.write16(0xFF53, dest.to_be());
+            b.write16(0xFF55, len);
+
+            // Transfer completed, DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            assert_ne!(b.read(start - 1), 0xAB);
+            for a in start..=end {
+                assert_eq!(b.read(a), 0xAB);
+            }
+            assert_ne!(b.read(end + 1), 0xAB);
+        };
+        let test = |len, start, end| testex(len, start, end, 0xC000, start);
+
+        test(0, 0x8010, 0x801F);
+        test(10, 0x8010, 0x80BF);
+        test(0x7F, 0x8000, 0x87FF);
+    }
+
+    #[test]
+    fn cgb_vram_dma_masking_src() {
+        let mut b = gbbus_cgb();
+
+        // Pattern to WRAM
+        for i in 0xC000_u16..0xC010 {
+            b.write(i, 0xAB);
+        }
+
+        // Run transfer. This is supposed to copy
+        // 0xC000 - 0xC00F.
+        b.write16(0xFF51, 0xC00F_u16.to_be());
+        b.write16(0xFF53, 0x8000_u16.to_be());
+        b.write16(0xFF55, 0); // 0x10
+
+        for a in 0x8000_u16..=0x800F_u16 {
+            assert_eq!(b.read(a), 0xAB);
+        }
+        assert_ne!(b.read(0x8010), 0xAB);
+    }
+
+    #[test]
+    fn cgb_vram_dma_masking_dest() {
+        let mut b = gbbus_cgb();
+
+        // Pattern to WRAM
+        for i in 0xC000_u16..0xC010 {
+            b.write(i, 0xAB);
+        }
+
+        // Run transfer. This is supposed to copy
+        // to 0x8000 - 0x800F.
+        b.write16(0xFF51, 0xC000_u16.to_be());
+        b.write16(0xFF53, 0x000F_u16.to_be());
+        b.write16(0xFF55, 0); // 0x10
+
+        for a in 0x8000_u16..=0x800F_u16 {
+            assert_eq!(b.read(a), 0xAB);
+        }
+        assert_ne!(b.read(0x8010), 0xAB);
+        assert_ne!(b.read(0x000F), 0xAB);
     }
 }
