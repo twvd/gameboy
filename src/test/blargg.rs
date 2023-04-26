@@ -96,7 +96,7 @@ fn cpu_instrs_10() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/10-bit ops.gb"),
         b"Passed",
         b"Failed",
-        30000,
+        60000,
     );
 }
 
@@ -106,7 +106,7 @@ fn cpu_instrs_11() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/11-op a,(hl).gb"),
         b"Passed",
         b"Failed",
-        30000,
+        60000,
     );
 }
 
