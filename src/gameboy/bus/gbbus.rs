@@ -15,6 +15,10 @@ use std::io;
 use std::io::Write;
 use std::sync::mpsc;
 
+#[allow(dead_code)]
+const BOOTROM_SIZE_DMG: usize = 0x100;
+const BOOTROM_SIZE_CGB: usize = 0x900;
+
 const IF_MASK: u8 = 0x1F;
 
 /// Multiplexer for the Gameboy address bus
@@ -22,7 +26,7 @@ pub struct Gameboybus {
     cgb: bool,
 
     cart: Box<dyn Cartridge>,
-    boot_rom: [u8; 256],
+    boot_rom: [u8; BOOTROM_SIZE_CGB],
 
     boot_rom_enabled: bool,
 
@@ -70,7 +74,7 @@ impl Gameboybus {
         let mut bus = Gameboybus {
             cgb,
             cart,
-            boot_rom: [0; 256],
+            boot_rom: [0; BOOTROM_SIZE_CGB],
             boot_rom_enabled: false,
 
             wram: [0; Self::WRAM_SIZE * Self::WRAM_BANKS],
@@ -92,7 +96,7 @@ impl Gameboybus {
         };
 
         if let Some(br) = bootrom {
-            bus.boot_rom.copy_from_slice(br);
+            bus.boot_rom[0..br.len()].copy_from_slice(br);
             bus.boot_rom_enabled = true;
         }
 
@@ -127,8 +131,11 @@ impl BusMember for Gameboybus {
         let addr = addr as usize;
 
         match addr {
-            // Boot ROM
+            // DMG/CGB (lower part) Boot ROM
             0x0000..=0x00FF if self.boot_rom_enabled => self.boot_rom[addr],
+
+            // CGB (upper part) Boot ROM
+            0x0200..=0x08FF if self.boot_rom_enabled && self.cgb => self.boot_rom[addr],
 
             // Cartridge ROM
             0x0000..=0x7FFF => self.cart.read(addr as u16),
