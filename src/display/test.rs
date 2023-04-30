@@ -1,4 +1,4 @@
-use super::display::Display;
+use super::display::{Color, Display};
 
 use sha2::{Digest, Sha256};
 
@@ -10,7 +10,7 @@ use std::rc::Rc;
 pub struct TestDisplay {
     width: usize,
     height: usize,
-    buffer: Vec<Vec<u8>>,
+    buffer: Vec<Vec<Color>>,
     state: TDS,
 }
 
@@ -24,9 +24,9 @@ pub type TDS = Rc<Cell<TestDisplayState>>;
 
 impl TestDisplay {
     pub fn new(width: usize, height: usize) -> (Box<Self>, TDS) {
-        let mut vs: Vec<Vec<u8>> = Vec::with_capacity(height);
+        let mut vs: Vec<Vec<Color>> = Vec::with_capacity(height);
         for _ in 0..height {
-            let mut vline = Vec::<u8>::with_capacity(width);
+            let mut vline = Vec::<Color>::with_capacity(width);
             for _ in 0..width {
                 vline.push(0);
             }
@@ -51,7 +51,7 @@ impl TestDisplay {
 }
 
 impl Display for TestDisplay {
-    fn set_pixel(&mut self, x: usize, y: usize, color: u8) {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
         assert!(x < self.width);
         assert!(y < self.height);
 
@@ -66,6 +66,7 @@ impl Display for TestDisplay {
             self.buffer
                 .iter()
                 .flat_map(|v| v.clone().into_iter())
+                .flat_map(|i| i.to_le_bytes().into_iter())
                 .collect::<Vec<u8>>(),
         );
         let hash = hasher.finalize();

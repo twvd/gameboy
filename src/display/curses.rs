@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use super::display::Display;
+use super::display::{Color, Display};
 use crate::input::curses::CursesInput;
 
 use itertools::Itertools;
@@ -17,7 +17,7 @@ const PX_NONE: &'static str = " ";
 pub struct CursesDisplay {
     width: usize,
     height: usize,
-    buffer: Vec<Vec<u8>>,
+    buffer: Vec<Vec<Color>>,
     window: Rc<pancurses::Window>,
     updates: usize,
     last_frame: Instant,
@@ -25,7 +25,7 @@ pub struct CursesDisplay {
 }
 
 /// Flag to mark a pixel for redrawing
-const DISP_DIRTY: u8 = 1 << 7;
+const DISP_DIRTY: u32 = 1 << 31;
 
 const COLORS: [i16; 4] = [
     pancurses::COLOR_WHITE,
@@ -36,9 +36,9 @@ const COLORS: [i16; 4] = [
 
 impl CursesDisplay {
     pub fn new(width: usize, height: usize, fps: u64) -> Self {
-        let mut vs: Vec<Vec<u8>> = Vec::with_capacity(height);
+        let mut vs: Vec<Vec<Color>> = Vec::with_capacity(height);
         for _ in 0..height {
-            let mut vline = Vec::<u8>::with_capacity(width);
+            let mut vline = Vec::<Color>::with_capacity(width);
             for _ in 0..width {
                 vline.push(0 | DISP_DIRTY);
             }
@@ -105,7 +105,7 @@ impl CursesDisplay {
 }
 
 impl Display for CursesDisplay {
-    fn set_pixel(&mut self, x: usize, y: usize, color: u8) {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
         assert!(x < self.width);
         assert!(y < self.height);
 

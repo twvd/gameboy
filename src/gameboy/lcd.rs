@@ -535,7 +535,7 @@ impl LCDController {
         }
 
         for (x, c) in line.into_iter().enumerate() {
-            self.output.set_pixel(x, scanline as usize, c);
+            self.output.set_pixel(x, scanline as usize, c.into());
         }
     }
 

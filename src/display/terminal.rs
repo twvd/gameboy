@@ -1,4 +1,4 @@
-use super::display::Display;
+use super::display::{Color, Display};
 
 const PX_BOT: char = '▄';
 const PX_TOP: char = '▀';
@@ -8,14 +8,14 @@ const PX_NONE: char = ' ';
 pub struct TermDisplay {
     width: usize,
     height: usize,
-    buffer: Vec<Vec<u8>>,
+    buffer: Vec<Vec<Color>>,
 }
 
 impl TermDisplay {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut vs: Vec<Vec<u8>> = Vec::with_capacity(height);
+        let mut vs: Vec<Vec<Color>> = Vec::with_capacity(height);
         for _ in 0..height {
-            let mut vline = Vec::<u8>::with_capacity(width);
+            let mut vline = Vec::<Color>::with_capacity(width);
             for _ in 0..width {
                 vline.push(0);
             }
@@ -31,8 +31,8 @@ impl TermDisplay {
 
     #[inline(always)]
     fn ch(&self, x: usize, y: usize) -> char {
-        let y1: u8 = self.buffer[y][x];
-        let y2: u8 = self.buffer[y + 1][x];
+        let y1 = self.buffer[y][x];
+        let y2 = self.buffer[y + 1][x];
 
         if y1 > 0 && y2 > 0 {
             PX_BOTH
@@ -47,7 +47,7 @@ impl TermDisplay {
 }
 
 impl Display for TermDisplay {
-    fn set_pixel(&mut self, x: usize, y: usize, color: u8) {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
         assert!(x < self.width);
         assert!(y < self.height);
 
