@@ -7,7 +7,12 @@ use clap::Parser;
 const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
 
+#[cfg(not(feature = "sixel"))]
 use gbrust::display::curses::CursesDisplay;
+
+#[cfg(feature = "sixel")]
+use gbrust::display::sixel::SixelDisplay;
+
 use gbrust::display::display::{Display, NullDisplay};
 use gbrust::gameboy::bus::bus::Bus;
 use gbrust::gameboy::bus::gbbus::Gameboybus;
@@ -87,9 +92,19 @@ fn main() -> Result<()> {
     }
 
     if !args.no_display {
-        let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
-        input = Box::new(cdisplay.create_input());
-        display = cdisplay as Box<dyn Display>;
+        #[cfg(not(feature = "sixel"))]
+        {
+            let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
+            input = Box::new(cdisplay.create_input());
+            display = cdisplay as Box<dyn Display>;
+        }
+
+        #[cfg(feature = "sixel")]
+        {
+            let sdisplay = Box::new(SixelDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
+            input = Box::new(NullInput::new());
+            display = sdisplay as Box<dyn Display>;
+        }
     } else {
         display = Box::new(NullDisplay::new());
         input = Box::new(NullInput::new());

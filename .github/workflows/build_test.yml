@@ -17,12 +17,16 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install prerequisites
-      run: sudo apt-get install -y libncurses-dev
+      run: sudo apt-get install -y libncurses-dev libsixel-dev
     - name: Fetch submodules
       run: git submodule update --init --recursive
     - name: Code formatting check
       run: cargo fmt --check
     - name: Build
       run: cargo build --verbose
+    - name: Build release
+      run: cargo build --verbose --release
+    - name: Build release with sixel
+      run: cargo build --verbose --release -F sixel
     - name: Run tests
       run: cargo test --verbose
