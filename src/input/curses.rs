@@ -1,15 +1,14 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use super::input::{Button, Input};
 
-use pancurses;
+use ncurses;
 use strum::IntoEnumIterator;
 
 pub struct CursesInput {
-    window: Rc<pancurses::Window>,
+    window: ncurses::WINDOW,
     press_time: RefCell<BTreeMap<Button, Instant>>,
 }
 
@@ -17,11 +16,16 @@ impl CursesInput {
     /// Time an input remains asserted after a key press
     const KEYDOWN_TIME: u128 = 200;
 
-    pub fn new(window: Rc<pancurses::Window>) -> Self {
-        pancurses::cbreak();
-        pancurses::noecho();
-        window.nodelay(true);
-        window.keypad(true);
+    const KEY_A: i32 = b'l' as i32;
+    const KEY_B: i32 = b'm' as i32;
+    const KEY_START: i32 = b' ' as i32;
+    const KEY_SELECT: i32 = b'.' as i32;
+
+    pub fn new(window: ncurses::WINDOW) -> Self {
+        ncurses::cbreak();
+        ncurses::noecho();
+        ncurses::nodelay(window, true);
+        ncurses::keypad(window, true);
 
         Self {
             window,
@@ -40,25 +44,31 @@ impl CursesInput {
         self.press_time.borrow_mut().insert(b, Instant::now());
     }
 
-    fn map_key(k: pancurses::Input) -> Option<Button> {
+    fn map_key(k: i32) -> Option<Button> {
         match k {
-            pancurses::Input::KeyUp => Some(Button::DPadUp),
-            pancurses::Input::KeyDown => Some(Button::DPadDown),
-            pancurses::Input::KeyLeft => Some(Button::DPadLeft),
-            pancurses::Input::KeyRight => Some(Button::DPadRight),
-            pancurses::Input::Character('l') => Some(Button::A),
-            pancurses::Input::Character('m') => Some(Button::B),
-            pancurses::Input::Character('.') => Some(Button::Select),
-            pancurses::Input::Character(' ') => Some(Button::Start),
+            ncurses::KEY_UP => Some(Button::DPadUp),
+            ncurses::KEY_DOWN => Some(Button::DPadDown),
+            ncurses::KEY_LEFT => Some(Button::DPadLeft),
+            ncurses::KEY_RIGHT => Some(Button::DPadRight),
+
+            Self::KEY_A => Some(Button::A),
+            Self::KEY_B => Some(Button::B),
+            Self::KEY_SELECT => Some(Button::Select),
+            Self::KEY_START => Some(Button::Start),
 
             _ => None,
         }
     }
 
     fn process_input(&self) {
-        while let Some(ch) = self.window.getch() {
-            if let Some(btn) = Self::map_key(ch) {
-                self.kick_btn(btn);
+        loop {
+            match ncurses::wgetch(self.window) {
+                ncurses::ERR => break,
+                res => {
+                    if let Some(btn) = Self::map_key(res) {
+                        self.kick_btn(btn);
+                    }
+                }
             }
         }
     }

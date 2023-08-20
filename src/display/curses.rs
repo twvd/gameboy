@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -6,8 +5,8 @@ use super::display::{Color, Display};
 use crate::input::curses::CursesInput;
 
 use itertools::Itertools;
-use pancurses;
-use pancurses::COLOR_PAIR;
+use ncurses;
+use ncurses::COLOR_PAIR;
 
 const PX_BOT: &'static str = "▄";
 //const PX_TOP: &'static str = "▀";
@@ -18,7 +17,7 @@ pub struct CursesDisplay {
     width: usize,
     height: usize,
     buffer: Vec<Vec<Color>>,
-    window: Rc<pancurses::Window>,
+    window: ncurses::WINDOW,
     updates: usize,
     last_frame: Instant,
     frametime: u64,
@@ -28,10 +27,10 @@ pub struct CursesDisplay {
 const DISP_DIRTY: u32 = 1 << 31;
 
 const COLORS: [i16; 4] = [
-    pancurses::COLOR_WHITE,
-    pancurses::COLOR_CYAN,
-    pancurses::COLOR_BLUE,
-    pancurses::COLOR_BLACK,
+    ncurses::COLOR_WHITE,
+    ncurses::COLOR_CYAN,
+    ncurses::COLOR_BLUE,
+    ncurses::COLOR_BLACK,
 ];
 
 impl CursesDisplay {
@@ -45,24 +44,24 @@ impl CursesDisplay {
             vs.push(vline);
         }
 
-        let mut win = pancurses::initscr();
-        win.resize(height as i32 / 2, width as i32);
-        pancurses::curs_set(0);
+        let win = ncurses::initscr();
+        ncurses::wresize(win, height as i32 / 2, width as i32);
+        ncurses::curs_set(ncurses::CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 
-        pancurses::start_color();
+        ncurses::start_color();
 
         for v in [0, 0, 1, 1, 2, 2, 3, 3].into_iter().permutations(2) {
             let (a, b) = (v[0], v[1]);
             let pair: i16 = (a << 4) | b;
-            assert!((pair as i32) < pancurses::COLOR_PAIRS());
-            pancurses::init_pair(pair, COLORS[a as usize], COLORS[b as usize]);
+            assert!((pair as i32) < ncurses::COLOR_PAIRS());
+            ncurses::init_pair(pair, COLORS[a as usize], COLORS[b as usize]);
         }
 
         Self {
             width,
             height,
             buffer: vs,
-            window: Rc::new(win),
+            window: win,
             updates: 0,
             last_frame: Instant::now(),
             frametime: (1000000 / fps),
@@ -77,9 +76,9 @@ impl CursesDisplay {
         for y in (0..self.height).step_by(2) {
             for x in 0..self.width {
                 if (self.buffer[y][x] | self.buffer[y + 1][x]) & DISP_DIRTY == DISP_DIRTY || full {
-                    let y1: u32 = self.buffer[y][x] as u32 & 3;
-                    let y2: u32 = self.buffer[y + 1][x] as u32 & 3;
-                    let colors: u32 = (y2 << 4) | y1;
+                    let y1: i16 = self.buffer[y][x] as i16 & 3;
+                    let y2: i16 = self.buffer[y + 1][x] as i16 & 3;
+                    let colors: i16 = (y2 << 4) | y1;
                     let ch = if y1 == 3 && y2 == 3 {
                         // Both black
                         PX_NONE
@@ -91,16 +90,16 @@ impl CursesDisplay {
                         PX_BOT
                     };
 
-                    self.window.attron(COLOR_PAIR(colors));
-                    self.window.mvaddstr(y as i32 / 2, x as i32, ch);
-                    self.window.attroff(COLOR_PAIR(colors));
+                    ncurses::attron(COLOR_PAIR(colors));
+                    ncurses::mvaddstr(y as i32 / 2, x as i32, ch);
+                    ncurses::attroff(COLOR_PAIR(colors));
 
                     self.buffer[y][x] &= !DISP_DIRTY;
                     self.buffer[y + 1][x] &= !DISP_DIRTY;
                 }
             }
         }
-        self.window.refresh();
+        ncurses::refresh();
     }
 }
 
