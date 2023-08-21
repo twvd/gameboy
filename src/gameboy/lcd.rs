@@ -9,6 +9,9 @@ use num_traits::ToPrimitive;
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
 
+/// Type of a color definition (RGB555)
+pub type Color = u16;
+
 const VRAM_SIZE: usize = 0x2000;
 
 // Tile sizes
@@ -354,14 +357,20 @@ impl LCDController {
     /// Converts a color index to a color from the
     /// BG/OBJ palettes
     /// (DMG-mode only)
-    fn palette_convert(cidx: u8, palette: u8) -> u8 {
-        (palette >> (cidx * 2)) & 3
+    fn palette_convert_dmg(cidx: u8, palette: u8) -> Color {
+        match (palette >> (cidx * 2)) & 3 {
+            3 => 0,
+            2 => 0b01000_01000_01000,
+            1 => 0b11000_11000_11000,
+            0 => 0b11111_11111_11111,
+            _ => unreachable!(),
+        }
     }
 
     fn draw_tile_at(
         &self,
         tile: &[u8],
-        line: &mut [u8],
+        line: &mut [Color],
         x: isize,
         y: isize,
         palette: u8,
@@ -424,7 +433,7 @@ impl LCDController {
                     }
                 }
 
-                let color = Self::palette_convert(color_idx, palette);
+                let color = Self::palette_convert_dmg(color_idx, palette);
 
                 line[disp_x as usize] = color;
             }

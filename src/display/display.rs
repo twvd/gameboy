@@ -1,5 +1,5 @@
-/// Type of a color definition.
-pub type Color = u32;
+/// Type of a color definition (RGB555)
+pub type Color = u16;
 
 /// Base trait for a display output
 pub trait Display: std::any::Any {

@@ -28,9 +28,9 @@ impl SixelDisplay {
         Self {
             width,
             height,
-            depth: 3,
+            depth: 2,
             scale: 4,
-            buffer: vec![0; width * height * 3 * 4 * 4],
+            buffer: vec![0; width * height * 2 * 4 * 4],
             encoder,
             updates: 0,
             last_frame: Instant::now(),
@@ -53,22 +53,12 @@ impl SixelDisplay {
 
 impl Display for SixelDisplay {
     fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
-        let (r, g, b) = match color {
-            3 => (0, 0, 0),
-            2 => (90, 90, 90),
-            1 => (160, 160, 160),
-            0 => (255, 255, 255),
-            _ => {
-                println!("{}", color);
-                unreachable!()
-            }
-        };
-
         for px in (x * self.scale)..((x + 1) * self.scale) {
             for py in (y * self.scale)..((y + 1) * self.scale) {
-                self.buffer[px * self.depth + py * self.depth * self.width * self.scale + 0] = r;
-                self.buffer[px * self.depth + py * self.depth * self.width * self.scale + 1] = g;
-                self.buffer[px * self.depth + py * self.depth * self.width * self.scale + 2] = b;
+                self.buffer[px * self.depth + py * self.depth * self.width * self.scale + 0] =
+                    (color >> 8) as u8;
+                self.buffer[px * self.depth + py * self.depth * self.width * self.scale + 1] =
+                    (color & 0xFF) as u8;
             }
         }
     }
@@ -85,7 +75,7 @@ impl Display for SixelDisplay {
             let frame = QuickFrameBuilder::new()
                 .width(self.width * self.scale)
                 .height(self.height * self.scale)
-                .format(PixelFormat::RGB888)
+                .format(PixelFormat::RGB555)
                 .pixels(self.buffer.clone());
 
             self.move_cursor(0, 0);

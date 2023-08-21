@@ -24,7 +24,40 @@ pub struct TerminalDisplay {
 }
 
 /// Flag to mark a pixel for redrawing
-const DISP_DIRTY: u32 = 1 << 31;
+/// We use bit 15 as RGB555 only uses bits 0 - 14.
+const DISP_DIRTY: u16 = 1 << 15;
+
+fn unpack_rgb555(c: Color) -> (u8, u8, u8) {
+    (
+        ((c >> 10) & 0x1F) as u8,
+        ((c >> 5) & 0x1F) as u8,
+        (c & 0x1F) as u8,
+    )
+}
+
+fn rgb555_to_rgb888((r, g, b): (u8, u8, u8)) -> (u8, u8, u8) {
+    (
+        (r as u16 * 255 / 31) as u8,
+        (g as u16 * 255 / 31) as u8,
+        (b as u16 * 255 / 31) as u8,
+    )
+}
+
+fn rgb888_to_ansi((r, g, b): (u8, u8, u8)) -> u8 {
+    if r == g && g == b {
+        if r < 8 {
+            return 0;
+        }
+
+        if r > 248 {
+            return 231;
+        }
+
+        return (((r as u16 - 8) * 24) / 247) as u8 + 232;
+    }
+
+    16 + (36 * (r / 255 * 5)) + (6 * (g / 255 * 5)) + (b / 255 * 5)
+}
 
 impl TerminalDisplay {
     pub fn new(width: usize, height: usize, fps: u64) -> Self {
@@ -38,6 +71,7 @@ impl TerminalDisplay {
         }
 
         let term = terminal::stdout();
+        term.act(Action::ResetColor).unwrap();
         term.act(Action::HideCursor).unwrap();
         term.act(Action::DisableBlinking).unwrap();
         term.act(Action::ClearTerminal(Clear::All)).unwrap();
@@ -58,15 +92,13 @@ impl TerminalDisplay {
         TerminalInput::new(terminal::stdout())
     }
 
-    /// Map a color from.our internal color type to a terminal color
+    /// Map a color from our internal color type to a terminal color
     fn map_color(&self, c: Color) -> TerminalColor {
-        match c {
-            3 => TerminalColor::AnsiValue(232),
-            2 => TerminalColor::AnsiValue(240),
-            1 => TerminalColor::AnsiValue(248),
-            0 => TerminalColor::AnsiValue(255),
-            _ => unreachable!(),
+        let ansi = rgb888_to_ansi(rgb555_to_rgb888(unpack_rgb555(c)));
+        if ansi != 16 {
+            //panic!("{}", ansi);
         }
+        TerminalColor::AnsiValue(ansi)
     }
 
     /// Map a pair of two vertically adjacent pixels to a printable
@@ -152,5 +184,42 @@ impl Display for TerminalDisplay {
             sleep(Duration::from_micros(self.frametime - framelen));
         }
         self.last_frame = Instant::now();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rgb555_to_rgb888() {
+        assert_eq!(rgb555_to_rgb888((0, 0, 0)), (0, 0, 0));
+        assert_eq!(rgb555_to_rgb888((0x1F, 0x1F, 0x1F)), (255, 255, 255));
+
+        assert_eq!(rgb555_to_rgb888((0b01000, 0b01000, 0b01000)), (65, 65, 65));
+        assert_eq!(
+            rgb555_to_rgb888((0b10000, 0b10000, 0b10000)),
+            (131, 131, 131)
+        );
+    }
+
+    #[test]
+    fn test_unpack_rgb555() {
+        assert_eq!(unpack_rgb555(0x7FFF), (0x1F, 0x1F, 0x1F));
+        assert_eq!(unpack_rgb555(0), (0, 0, 0));
+        assert_eq!(unpack_rgb555(0b01000_01000_01000), (8, 8, 8));
+        assert_eq!(unpack_rgb555(0b10000_10000_10000), (16, 16, 16));
+
+        assert_eq!(unpack_rgb555(0b11111_00000_00000), (0x1F, 0, 0));
+        assert_eq!(unpack_rgb555(0b00000_11111_00000), (0, 0x1F, 0));
+        assert_eq!(unpack_rgb555(0b00000_00000_11111), (0, 0, 0x1F));
+    }
+
+    #[test]
+    fn test_rgb888_to_ansi() {
+        assert_eq!(rgb888_to_ansi((0, 0, 0)), 0);
+        assert_eq!(rgb888_to_ansi((65, 65, 65)), 237);
+        assert_eq!(rgb888_to_ansi((131, 131, 131)), 243);
+        assert_eq!(rgb888_to_ansi((255, 255, 255)), 231);
     }
 }
