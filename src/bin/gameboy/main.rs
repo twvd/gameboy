@@ -8,7 +8,7 @@ const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
 
 #[cfg(not(feature = "sixel"))]
-use gbrust::display::curses::CursesDisplay;
+use gbrust::display::terminal::TerminalDisplay;
 
 #[cfg(feature = "sixel")]
 use gbrust::display::sixel::SixelDisplay;
@@ -94,7 +94,7 @@ fn main() -> Result<()> {
     if !args.no_display {
         #[cfg(not(feature = "sixel"))]
         {
-            let cdisplay = Box::new(CursesDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
+            let cdisplay = Box::new(TerminalDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
             input = Box::new(cdisplay.create_input());
             display = cdisplay as Box<dyn Display>;
         }

@@ -20,4 +20,5 @@ sha2 = "0.10.6"
 sixel-rs = { version = "0.3.3", optional = true }
 strum = { version = "0.24.1", features = ["derive"] }
 strum_macros = "0.24.3"
+terminal = "0.2.1"
 thiserror = "1.0.38"
