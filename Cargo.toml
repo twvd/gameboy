@@ -13,7 +13,6 @@ anyhow = "1.0.69"
 clap = { version = "4.1.8", features = ["derive"] }
 hex-literal = "0.4.1"
 itertools = "0.10.5"
-ncurses = { version = "5.101.0", features = ["wide", "extended_colors"] }
 num-derive = "0.3.3"
 num-traits = "0.2.15"
 sha2 = "0.10.6"

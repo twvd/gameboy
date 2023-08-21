@@ -266,7 +266,6 @@ dependencies = [
  "clap",
  "hex-literal",
  "itertools",
- "ncurses",
  "num-derive",
  "num-traits",
  "sha2",
@@ -415,17 +414,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ncurses"
-version = "5.101.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e2c5d34d72657dc4b638a1c25d40aae81e4f1c699062f72f467237920752032"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
-
-[[package]]
 name = "net2"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -485,12 +473,6 @@ dependencies = [
  "smallvec",
  "winapi 0.3.9",
 ]
-
-[[package]]
-name = "pkg-config"
-version = "0.3.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "proc-macro2"

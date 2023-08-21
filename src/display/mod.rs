@@ -1,4 +1,3 @@
-pub mod curses;
 pub mod display;
 
 #[cfg(feature = "sixel")]
