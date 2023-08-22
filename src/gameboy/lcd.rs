@@ -19,7 +19,7 @@ const TILE_BSIZE: usize = 16;
 const TILE_W: isize = 8;
 const TILE_H: isize = 8;
 
-// Backgtound/window size (in tiles)
+// Background/window size (in tiles)
 const BGW_H: isize = 32;
 const BGW_W: isize = 32;
 
@@ -49,6 +49,15 @@ const LCDS_LYC: u8 = 1 << 2;
 const OAM_BGW_PRIORITY: u8 = 1 << 7;
 const OAM_FLIP_Y: u8 = 1 << 6;
 const OAM_FLIP_X: u8 = 1 << 5;
+const OAM_PALETTE_DMG: u8 = 1 << 4;
+const OAM_PALETTE_CGB_MASK: u8 = 0x07;
+const OAM_PALETTE_CGB_SHIFT: u8 = 0;
+
+// Gameboy Color register properties
+const CRAM_ENTRIES: usize = 0x20;
+const XCPS_ADDR_MASK: u8 = 0x3F;
+const XCPS_AUTO_INC: u8 = 1 << 7;
+const COLOR_MASK: Color = 0x7FFF;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
 enum LCDStatMode {
@@ -99,11 +108,27 @@ pub struct LCDController {
     /// LY compare register
     lyc: u8,
 
-    /// Background/window palette
+    /// Background/window palette (DMG)
     bgp: u8,
 
-    /// Object Palettes
+    /// Object Palettes (DMG)
     obp: [u8; 2],
+
+    /// Background CRAM (CGB)
+    cram_bg: [Color; CRAM_ENTRIES],
+
+    /// Object CRAM (CGB)
+    cram_obj: [Color; CRAM_ENTRIES],
+
+    /// Background Color Palette Specification (BCPS) (CGB)
+    /// Bit 7: auto increment
+    /// Bit 5-0: address (XCPS_ADDR_MASK)
+    bcps: u8,
+
+    /// Object Color Palette Specification (OCPS)(CGB)
+    /// Bit 7: auto increment
+    /// Bit 5-0: address (XCPS_ADDR_MASK)
+    ocps: u8,
 
     /// Output display needs updsting
     redraw_pending: bool,
@@ -152,6 +177,10 @@ impl LCDController {
             lyc: 0,
             bgp: 0,
             obp: [0, 0],
+            bcps: 0,
+            ocps: 0,
+            cram_bg: [0x1F; CRAM_ENTRIES],
+            cram_obj: [0; CRAM_ENTRIES],
 
             redraw_pending: false,
 
@@ -267,6 +296,39 @@ impl LCDController {
         lsb | msb << 1
     }
 
+    fn write_xcpd(cram: &mut [Color], xcps: &mut u8, val: u8) {
+        let addr: usize = (*xcps & XCPS_ADDR_MASK) as usize;
+        let entry: usize = addr >> 1;
+        let new_val: Color = if addr & 1 == 0 {
+            // Write LSB
+            cram[entry] & 0xFF00 | val as Color
+        } else {
+            // Write MSB
+            cram[entry] & 0x00FF | ((val as Color) << 8)
+        } & COLOR_MASK;
+        cram[entry] = new_val;
+
+        // Handle auto-increment
+        if *xcps & XCPS_AUTO_INC == XCPS_AUTO_INC {
+            let new_addr = (*xcps + 1) & XCPS_ADDR_MASK;
+            *xcps = new_addr | XCPS_AUTO_INC;
+        }
+    }
+
+    fn read_xcpd(cram: &[Color], xcps: &u8) -> u8 {
+        let addr: usize = (*xcps & XCPS_ADDR_MASK) as usize;
+        let entry: usize = addr >> 1;
+        if addr & 1 == 0 {
+            // Read LSB
+            (cram[entry] & 0xFF) as u8
+        } else {
+            // Read MSB
+            (cram[entry] >> 8) as u8
+        }
+
+        // Auto-increment has no effect on reads
+    }
+
     pub fn write_io(&mut self, addr: u16, val: u8) {
         match addr {
             // LCDC - LCD control register
@@ -297,6 +359,18 @@ impl LCDController {
             0xFF48 => self.obp[0] = val,
             0xFF49 => self.obp[1] = val,
 
+            // BCPS - Background Color Palette Specification
+            0xFF68 => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+
+            // BCPD - Background Color Palette Data
+            0xFF69 => Self::write_xcpd(&mut self.cram_bg, &mut self.bcps, val),
+
+            // OCPS - Object Color Palette Specification
+            0xFF6A => self.ocps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+
+            // OCPD - Background Color Palette Data
+            0xFF6B => Self::write_xcpd(&mut self.cram_obj, &mut self.ocps, val),
+
             _ => (),
         }
     }
@@ -321,7 +395,7 @@ impl LCDController {
             // LYC - LY compare
             0xFF45 => self.lyc,
 
-            // BGP - Bsckground and window palette
+            // BGP - Background and window palette
             0xFF47 => self.bgp,
 
             // OBPx - Object palette
@@ -333,6 +407,18 @@ impl LCDController {
 
             // WX - Window X register
             0xFF4B => self.wx,
+
+            // BCPS - Background Color Palette Specification
+            0xFF68 => self.bcps,
+
+            // BCPD - Background Color Palette Data
+            0xFF69 => Self::read_xcpd(&self.cram_bg, &self.bcps),
+
+            // OCPS - Object Color Palette Specification
+            0xFF6A => self.ocps,
+
+            // OCPD - Background Color Palette Data
+            0xFF6B => Self::read_xcpd(&self.cram_obj, &self.ocps),
 
             _ => 0,
         }
@@ -817,5 +903,61 @@ mod tests {
             c.tick(1).unwrap();
         }
         assert!(!c.get_clr_intreq_vblank());
+    }
+
+    fn test_cram(xcps_addr: u16, xcpd_addr: u16, lcd: &mut LCDController) {
+        macro_rules! read_cram {
+            ($entry:expr) => {
+                match xcps_addr {
+                    0xFF68 => lcd.cram_bg[$entry],
+                    0xFF6A => lcd.cram_obj[$entry],
+                    _ => unreachable!(),
+                }
+            };
+        }
+
+        // Test writes, byte order
+        lcd.write_io(xcps_addr, 0);
+        lcd.write_io(xcpd_addr, 0xBB);
+        lcd.write_io(xcps_addr, 1);
+        lcd.write_io(xcpd_addr, 0x7A);
+        assert_eq!(read_cram!(0), 0x7ABB);
+
+        // Test auto increment
+        lcd.write_io(xcps_addr, 0x20 | XCPS_AUTO_INC);
+        assert_eq!(lcd.read_io(xcps_addr), 0x20 | XCPS_AUTO_INC);
+        lcd.write_io(xcpd_addr, 0x04);
+        assert_eq!(lcd.read_io(xcps_addr), 0x21 | XCPS_AUTO_INC);
+        lcd.write_io(xcpd_addr, 0x03);
+        assert_eq!(read_cram!(0x10), 0x0304);
+        assert_eq!(lcd.read_io(xcps_addr), 0x22 | XCPS_AUTO_INC);
+
+        // Test auto increment overflow
+        lcd.write_io(xcps_addr, 0x3F | XCPS_AUTO_INC);
+        assert_eq!(lcd.read_io(xcps_addr), 0x3F | XCPS_AUTO_INC);
+        lcd.write_io(xcpd_addr, 0x55);
+        assert_eq!(lcd.read_io(xcps_addr), 0x00 | XCPS_AUTO_INC);
+        lcd.write_io(xcpd_addr, 0x66);
+        assert_eq!(read_cram!(0x3F >> 1) & 0xFF00, 0x5500);
+        assert_eq!(read_cram!(0x00) & 0x00FF, 0x0066);
+
+        // Test address mask
+        lcd.write_io(xcps_addr, 0x40 | XCPS_AUTO_INC);
+        assert_eq!(lcd.read_io(xcps_addr), 0x00 | XCPS_AUTO_INC);
+        lcd.write_io(xcpd_addr, 0x0B);
+        lcd.write_io(xcpd_addr, 0x0A);
+        assert_eq!(read_cram!(0), 0x0A0B);
+    }
+
+    #[test]
+    fn cram_bg() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+        test_cram(0xFF68, 0xFF69, &mut c);
+    }
+
+    #[test]
+    fn cram_obj() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+        test_cram(0xFF6A, 0xFF6B, &mut c);
     }
 }
