@@ -29,9 +29,9 @@ const DISP_DIRTY: u16 = 1 << 15;
 
 fn unpack_rgb555(c: Color) -> (u8, u8, u8) {
     (
-        ((c >> 10) & 0x1F) as u8,
-        ((c >> 5) & 0x1F) as u8,
         (c & 0x1F) as u8,
+        ((c >> 5) & 0x1F) as u8,
+        ((c >> 10) & 0x1F) as u8,
     )
 }
 
@@ -95,9 +95,6 @@ impl TerminalDisplay {
     /// Map a color from our internal color type to a terminal color
     fn map_color(&self, c: Color) -> TerminalColor {
         let ansi = rgb888_to_ansi(rgb555_to_rgb888(unpack_rgb555(c)));
-        if ansi != 16 {
-            //panic!("{}", ansi);
-        }
         TerminalColor::AnsiValue(ansi)
     }
 
@@ -210,9 +207,9 @@ mod tests {
         assert_eq!(unpack_rgb555(0b01000_01000_01000), (8, 8, 8));
         assert_eq!(unpack_rgb555(0b10000_10000_10000), (16, 16, 16));
 
-        assert_eq!(unpack_rgb555(0b11111_00000_00000), (0x1F, 0, 0));
+        assert_eq!(unpack_rgb555(0b11111_00000_00000), (0, 0, 0x1F));
         assert_eq!(unpack_rgb555(0b00000_11111_00000), (0, 0x1F, 0));
-        assert_eq!(unpack_rgb555(0b00000_00000_11111), (0, 0, 0x1F));
+        assert_eq!(unpack_rgb555(0b00000_00000_11111), (0x1F, 0, 0));
     }
 
     #[test]
