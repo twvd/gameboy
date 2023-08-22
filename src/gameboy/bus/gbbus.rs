@@ -193,7 +193,7 @@ impl BusMember for Gameboybus {
             0xFF46 => 0,
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF69 => self.lcd.read_io(addr as u16),
+            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.read_io(addr as u16),
 
             // CGB - HDMA1 - VRAM DMA source (MSB)
             0xFF51 if self.cgb => (self.vramdma_src >> 8) as u8,
@@ -301,7 +301,7 @@ impl BusMember for Gameboybus {
             }
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF69 => self.lcd.write_io(addr as u16, val),
+            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.write_io(addr as u16, val),
 
             // CGB - HDMA1 - VRAM DMA source (MSB)
             0xFF51 if self.cgb => self.vramdma_src = ((val as u16) << 8) | self.vramdma_src & 0xFF,

@@ -50,7 +50,8 @@ const LCDS_LYC: u8 = 1 << 2;
 const OAM_BGW_PRIORITY: u8 = 1 << 7;
 const OAM_FLIP_Y: u8 = 1 << 6;
 const OAM_FLIP_X: u8 = 1 << 5;
-const OAM_PALETTE_DMG: u8 = 1 << 4;
+const OAM_PALETTE_DMG_MASK: u8 = 1 << 4;
+const OAM_PALETTE_DMG_SHIFT: u8 = 4;
 const OAM_PALETTE_CGB_MASK: u8 = 0x07;
 const OAM_PALETTE_CGB_SHIFT: u8 = 0;
 
@@ -66,6 +67,7 @@ const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
 const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
 
 /// Generic of the DMG and CGB palette types
+#[derive(Copy, Clone)]
 enum Palette {
     DMG(u8),
     CGB([Color; CGB_PALETTE_SIZE]),
@@ -195,7 +197,7 @@ impl LCDController {
             bcps: 0,
             ocps: 0,
             vbk: 0,
-            cram_bg: [0x1F; CRAM_ENTRIES],
+            cram_bg: [0x7F; CRAM_ENTRIES],
             cram_obj: [0; CRAM_ENTRIES],
 
             redraw_pending: false,
@@ -265,11 +267,28 @@ impl LCDController {
     }
 
     #[inline(always)]
-    fn get_bgw_tile(&self, tm_x: isize, tm_y: isize, selbit: u8) -> &[u8] {
+    fn get_tile_attr(&self, tm_x: isize, tm_y: isize, selbit: u8) -> u8 {
+        // VRAM offset = 8000 - 9FFF
+        // BG tile map at 9800 - 9BFF or 9C00 - 9FFF
+        // Window tile map at 9800 - 9BFF or 9C00 - 9FFF
+        let offset: isize = if self.lcdc & selbit == selbit {
+            0x9C00
+        } else {
+            0x9800
+        };
+
+        assert!(tm_x < BGW_W && tm_y < BGW_H);
+
+        self.vram[VRAM_SIZE + (offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
+    }
+
+    #[inline(always)]
+    fn get_bgw_tile(&self, tm_x: isize, tm_y: isize, selbit: u8) -> (&[u8], u8) {
         // VRAM offset = 8000 - 9FFF
         // BG/Win tile data at 8800 - 97FF and 8000 - 8FFF
         // BG/Win tiles always 8 x 8 pixels
         let tile_id = self.get_tile_id(tm_x, tm_y, selbit) as usize;
+        let tile_attr = self.get_tile_attr(tm_x, tm_y, selbit);
         let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
             // 0x8000 base offset, contiguous blocks
             0x8000 + tile_id * TILE_BSIZE
@@ -285,7 +304,7 @@ impl LCDController {
         // Correct for our VRAM array
         let tile_addr = (tile_addr - 0x8000) as usize;
 
-        &self.vram[tile_addr..tile_addr + TILE_BSIZE]
+        (&self.vram[tile_addr..tile_addr + TILE_BSIZE], tile_attr)
     }
 
     #[inline(always)]
@@ -566,13 +585,28 @@ impl LCDController {
         if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
             let t_y = (scanline + self.scy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
             for t_x in 0..BGW_W {
-                let tile = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
+                let (p_tile, attr) = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
+                let tile = p_tile.to_owned();
+
+                let palette = if !self.cgb {
+                    Palette::DMG(self.bgp)
+                } else {
+                    let palidx =
+                        ((attr & BGMAP_ATTR_PALETTE_MASK) >> BGMAP_ATTR_PALETTE_SHIFT) as usize;
+                    Palette::CGB(
+                        self.cram_bg
+                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
+                            .try_into()
+                            .unwrap(),
+                    )
+                };
+
                 self.draw_tile_at(
                     &tile,
                     &mut line,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
-                    Palette::DMG(self.bgp),
+                    palette,
                     None,
                     scanline,
                     Some(BGW_W * TILE_W),
@@ -585,13 +619,28 @@ impl LCDController {
         if self.is_window_active() && scanline >= self.wy as isize {
             let t_y = self.wly as isize / TILE_H;
             for t_x in 0..BGW_W {
-                let tile = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
+                let (p_tile, attr) = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
+                let tile = p_tile.to_owned();
+
+                let palette = if !self.cgb {
+                    Palette::DMG(self.bgp)
+                } else {
+                    let palidx =
+                        ((attr & BGMAP_ATTR_PALETTE_MASK) >> BGMAP_ATTR_PALETTE_SHIFT) as usize;
+                    Palette::CGB(
+                        self.cram_bg
+                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
+                            .try_into()
+                            .unwrap(),
+                    )
+                };
+
                 self.draw_tile_at(
                     &tile,
                     &mut line,
                     (t_x as isize * TILE_W) + self.wx as isize - 7,
                     (t_y as isize * TILE_H) + (scanline - self.wly as isize),
-                    Palette::DMG(self.bgp),
+                    palette,
                     None,
                     scanline,
                     None,
@@ -624,12 +673,28 @@ impl LCDController {
 
                 let sprite = self.get_sprite(tile_idx as usize).to_owned();
 
+                let palette = if !self.cgb {
+                    Palette::DMG(
+                        self.obp
+                            [((e.flags & OAM_PALETTE_DMG_MASK) >> OAM_PALETTE_DMG_SHIFT) as usize],
+                    )
+                } else {
+                    let palidx =
+                        ((e.flags & OAM_PALETTE_CGB_MASK) >> OAM_PALETTE_CGB_SHIFT) as usize;
+                    Palette::CGB(
+                        self.cram_obj
+                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
+                            .try_into()
+                            .unwrap(),
+                    )
+                };
+
                 self.draw_tile_at(
                     &sprite,
                     &mut line,
                     disp_x,
                     disp_y,
-                    Palette::DMG(self.obp[((e.flags & 0x10) >> 4) as usize]),
+                    palette,
                     Some(e.flags),
                     scanline,
                     None,
@@ -648,7 +713,7 @@ impl LCDController {
                         &mut line,
                         disp_x,
                         disp_y + TILE_H,
-                        Palette::DMG(self.obp[((e.flags & 0x10) >> 4) as usize]),
+                        palette,
                         Some(e.flags),
                         scanline,
                         None,
