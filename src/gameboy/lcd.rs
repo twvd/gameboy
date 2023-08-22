@@ -59,6 +59,17 @@ const CRAM_ENTRIES: usize = 0x20;
 const XCPS_ADDR_MASK: u8 = 0x3F;
 const XCPS_AUTO_INC: u8 = 1 << 7;
 const COLOR_MASK: Color = 0x7FFF;
+const CGB_PALETTE_SIZE: usize = 4;
+
+// BG map attributes (VRAM bank 1, CGB only)
+const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
+const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
+
+/// Generic of the DMG and CGB palette types
+enum Palette {
+    DMG(u8),
+    CGB([Color; CGB_PALETTE_SIZE]),
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
 enum LCDStatMode {
@@ -464,13 +475,17 @@ impl LCDController {
         }
     }
 
+    fn palette_convert_cgb(cidx: u8, palette: &[Color]) -> Color {
+        palette[cidx as usize]
+    }
+
     fn draw_tile_at(
         &self,
         tile: &[u8],
         line: &mut [Color],
         x: isize,
         y: isize,
-        palette: u8,
+        palette: Palette,
         obj_flags: Option<u8>,
         scanline: isize,
         wrap_x: Option<isize>,
@@ -530,7 +545,10 @@ impl LCDController {
                     }
                 }
 
-                let color = Self::palette_convert_dmg(color_idx, palette);
+                let color = match palette {
+                    Palette::DMG(p) => Self::palette_convert_dmg(color_idx, p),
+                    Palette::CGB(p) => Self::palette_convert_cgb(color_idx, &p),
+                };
 
                 line[disp_x as usize] = color;
             }
@@ -554,7 +572,7 @@ impl LCDController {
                     &mut line,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
-                    self.bgp,
+                    Palette::DMG(self.bgp),
                     None,
                     scanline,
                     Some(BGW_W * TILE_W),
@@ -573,7 +591,7 @@ impl LCDController {
                     &mut line,
                     (t_x as isize * TILE_W) + self.wx as isize - 7,
                     (t_y as isize * TILE_H) + (scanline - self.wly as isize),
-                    self.bgp,
+                    Palette::DMG(self.bgp),
                     None,
                     scanline,
                     None,
@@ -611,7 +629,7 @@ impl LCDController {
                     &mut line,
                     disp_x,
                     disp_y,
-                    self.obp[((e.flags & 0x10) >> 4) as usize],
+                    Palette::DMG(self.obp[((e.flags & 0x10) >> 4) as usize]),
                     Some(e.flags),
                     scanline,
                     None,
@@ -630,7 +648,7 @@ impl LCDController {
                         &mut line,
                         disp_x,
                         disp_y + TILE_H,
-                        self.obp[((e.flags & 0x10) >> 4) as usize],
+                        Palette::DMG(self.obp[((e.flags & 0x10) >> 4) as usize]),
                         Some(e.flags),
                         scanline,
                         None,
