@@ -13,6 +13,7 @@ pub const LCD_H: usize = 144;
 pub type Color = u16;
 
 const VRAM_SIZE: usize = 0x2000;
+const VRAM_BANKS: usize = 2;
 
 // Tile sizes
 const TILE_BSIZE: usize = 16;
@@ -79,7 +80,7 @@ pub struct LCDController {
     cgb: bool,
 
     /// VRAM memory
-    vram: [u8; VRAM_SIZE],
+    vram: [u8; VRAM_SIZE * VRAM_BANKS],
 
     /// LCDC - LCD Control register
     lcdc: u8,
@@ -130,6 +131,9 @@ pub struct LCDController {
     /// Bit 5-0: address (XCPS_ADDR_MASK)
     ocps: u8,
 
+    /// VRAM bank select
+    vbk: u8,
+
     /// Output display needs updsting
     redraw_pending: bool,
 
@@ -164,7 +168,7 @@ impl LCDController {
             output: display,
             cgb,
             oam: OAMTable::new(),
-            vram: [0; VRAM_SIZE],
+            vram: [0; VRAM_SIZE * VRAM_BANKS],
 
             lcdc: LCDC_ENABLE,
             lcds: 0,
@@ -179,6 +183,7 @@ impl LCDController {
             obp: [0, 0],
             bcps: 0,
             ocps: 0,
+            vbk: 0,
             cram_bg: [0x1F; CRAM_ENTRIES],
             cram_obj: [0; CRAM_ENTRIES],
 
@@ -349,15 +354,18 @@ impl LCDController {
             // BGP - Background and window palette
             0xFF47 => self.bgp = val,
 
+            // OBPx - Object Palette
+            0xFF48 => self.obp[0] = val,
+            0xFF49 => self.obp[1] = val,
+
             // WY - Window Y register
             0xFF4A => self.wy = val,
 
             // WX - Window X register
             0xFF4B => self.wx = val,
 
-            // OBPx - Object Palette
-            0xFF48 => self.obp[0] = val,
-            0xFF49 => self.obp[1] = val,
+            // VBK - VRAM bank select (CGB)
+            0xFF4F => self.vbk = val & 1,
 
             // BCPS - Background Color Palette Specification
             0xFF68 => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
@@ -408,6 +416,9 @@ impl LCDController {
             // WX - Window X register
             0xFF4B => self.wx,
 
+            // VBK - VRAM bank select (CGB)
+            0xFF4F => self.vbk,
+
             // BCPS - Background Color Palette Specification
             0xFF68 => self.bcps,
 
@@ -425,7 +436,7 @@ impl LCDController {
     }
 
     pub fn write_vram(&mut self, addr: usize, val: u8) {
-        self.vram[addr] = val;
+        self.vram[addr + (VRAM_SIZE * self.vbk as usize)] = val;
     }
 
     pub fn write_oam(&mut self, addr: usize, val: u8) {
@@ -433,7 +444,7 @@ impl LCDController {
     }
 
     pub fn read_vram(&self, addr: usize) -> u8 {
-        self.vram[addr]
+        self.vram[addr + (VRAM_SIZE * self.vbk as usize)]
     }
 
     pub fn read_oam(&self, addr: usize) -> u8 {
@@ -959,5 +970,21 @@ mod tests {
     fn cram_obj() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         test_cram(0xFF6A, 0xFF6B, &mut c);
+    }
+
+    #[test]
+    fn vram_bank_switching() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+
+        c.write_vram(0, 0xAA);
+        assert_eq!(c.vram[0], 0xAA);
+        assert_eq!(c.read_vram(0), 0xAA);
+        assert_ne!(c.vram[VRAM_SIZE], 0xAA);
+        c.write_io(0xFF4F, 1);
+        assert_ne!(c.read_vram(0), 0xAA);
+        c.write_vram(0, 0xBB);
+        assert_eq!(c.vram[0], 0xAA);
+        assert_eq!(c.read_vram(0), 0xBB);
+        assert_eq!(c.vram[VRAM_SIZE], 0xBB);
     }
 }
