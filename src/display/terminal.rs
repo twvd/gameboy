@@ -46,17 +46,15 @@ fn rgb555_to_rgb888((r, g, b): (u8, u8, u8)) -> (u8, u8, u8) {
 fn rgb888_to_ansi((r, g, b): (u8, u8, u8)) -> u8 {
     if r == g && g == b {
         if r < 8 {
-            return 0;
+            0
+        } else if r > 248 {
+            231
+        } else {
+            (((r as u16 - 8) * 24) / 247) as u8 + 232
         }
-
-        if r > 248 {
-            return 231;
-        }
-
-        return (((r as u16 - 8) * 24) / 247) as u8 + 232;
+    } else {
+        (16 + (36 * (r as u16 * 5 / 255)) + (6 * (g as u16 * 5 / 255)) + (b as u16 * 5 / 255)) as u8
     }
-
-    16 + (36 * (r / 255 * 5)) + (6 * (g / 255 * 5)) + (b / 255 * 5)
 }
 
 impl TerminalDisplay {
