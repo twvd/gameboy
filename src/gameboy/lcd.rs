@@ -33,6 +33,7 @@ const LCDC_BG_TILEMAP: u8 = 1 << 3;
 const LCDC_OBJ_SIZE: u8 = 1 << 2;
 const LCDC_OBJ_ENABLE: u8 = 1 << 1;
 const LCDC_BGW_ENABLE: u8 = 1 << 0;
+const LCDC_CGB_BGW_MASTER_PRIORITY: u8 = 1 << 0;
 
 // Writable LCDS bits
 const LCDS_MASK: u8 = 0x78;
@@ -247,7 +248,8 @@ impl LCDController {
     /// Tests all conditions for the window to be drawn and the counter
     /// running
     fn is_window_active(&self) -> bool {
-        self.lcdc & (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE) == (LCDC_WINDOW_ENABLE | LCDC_BGW_ENABLE)
+        self.lcdc & LCDC_WINDOW_ENABLE == LCDC_WINDOW_ENABLE
+            && (self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE)
             && (0u8..=166).contains(&self.wx)
             && (0u8..=143).contains(&self.wy)
     }
@@ -566,16 +568,26 @@ impl LCDController {
                 );
 
                 // Objects blend into background
-                if obj_flags.is_some() {
+                if let Some(oflags) = obj_flags {
                     if color_idx == 0 {
                         continue;
                     }
 
                     // BG priority
-                    if obj_flags.unwrap() & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
-                        && line[disp_x as usize] > 0
-                    {
-                        continue;
+                    if !self.cgb {
+                        if oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
+                            && line[disp_x as usize] > 0
+                        {
+                            continue;
+                        }
+                    } else {
+                        if line[disp_x as usize] > 0
+                            && (self.lcdc & LCDC_CGB_BGW_MASTER_PRIORITY
+                                == LCDC_CGB_BGW_MASTER_PRIORITY)
+                            && (oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY)
+                        {
+                            continue;
+                        }
                     }
                 }
 
@@ -597,7 +609,7 @@ impl LCDController {
         let mut line = [0; LCD_W];
 
         // Background
-        if self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
+        if self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
             let t_y = (scanline + self.scy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
             for t_x in 0..BGW_W {
                 let (p_tile, attr) = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
