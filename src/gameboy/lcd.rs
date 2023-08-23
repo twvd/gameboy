@@ -182,7 +182,7 @@ impl LCDController {
         Self {
             output: display,
             cgb,
-            oam: OAMTable::new(),
+            oam: OAMTable::new(cgb),
             vram: [0; VRAM_SIZE * VRAM_BANKS],
 
             lcdc: LCDC_ENABLE,

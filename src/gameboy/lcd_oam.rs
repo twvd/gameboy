@@ -47,27 +47,48 @@ impl OAMEntry {
 /// Sprite Attribute Table / Object Attribute Memory
 pub struct OAMTable {
     oam: [OAMEntry; OAM_ENTRIES],
+    cgb: bool,
 }
 
 impl OAMTable {
-    pub fn new() -> Self {
+    pub fn new(cgb: bool) -> Self {
         Self {
             oam: [OAMEntry::new(); OAM_ENTRIES],
+            cgb,
         }
     }
 
-    pub fn iter_scanline(&self, y: isize, sprite_h: isize) -> impl Iterator<Item = &OAMEntry> {
+    pub fn iter_scanline(
+        &self,
+        y: isize,
+        sprite_h: isize,
+    ) -> Box<dyn Iterator<Item = &OAMEntry> + '_> {
+        // TODO remove the heap allocation of the iterator
+
         let y = y + 16;
-        self.oam
-            .iter()
-            // Select objects in current scanline
-            .filter(|&&e| (e.y as isize) <= y && (e.y as isize + sprite_h) > y)
-            // OAM scan only collects 10 objects per scanline
-            .take(10)
-            // Objects have priority from low X to high. To simplify this,
-            // just sort and draw right to left.
-            .sorted_by_key(|&e| e.x)
-            .rev()
+        if !self.cgb {
+            Box::new(
+                self.oam
+                    .iter()
+                    // Select objects in current scanline
+                    .filter(move |&&e| (e.y as isize) <= y && (e.y as isize + sprite_h) > y)
+                    // OAM scan only collects 10 objects per scanline
+                    .take(10)
+                    // Objects have priority from low X to high. To simplify this,
+                    // just sort and draw right to left.
+                    .sorted_by_key(|&e| e.x)
+                    .rev(),
+            )
+        } else {
+            Box::new(
+                self.oam
+                    .iter()
+                    // Select objects in current scanline
+                    .filter(move |&&e| (e.y as isize) <= y && (e.y as isize + sprite_h) > y)
+                    // OAM scan only collects 10 objects per scanline
+                    .take(10),
+            )
+        }
     }
 
     pub fn read(&self, addr: usize) -> u8 {
