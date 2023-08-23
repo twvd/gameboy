@@ -62,6 +62,7 @@ const CRAM_ENTRIES: usize = 0x20;
 const XCPS_ADDR_MASK: u8 = 0x3F;
 const XCPS_AUTO_INC: u8 = 1 << 7;
 const COLOR_MASK: Color = 0x7FFF;
+const COLOR_DEFAULT: Color = 0x7FFF; // White
 const CGB_PALETTE_SIZE: usize = 4;
 
 // BG map attributes (VRAM bank 1, CGB only)
@@ -506,7 +507,7 @@ impl LCDController {
             3 => 0,
             2 => 0b01000_01000_01000,
             1 => 0b11000_11000_11000,
-            0 => 0b11111_11111_11111,
+            0 => COLOR_DEFAULT,
             _ => unreachable!(),
         }
     }
@@ -576,12 +577,12 @@ impl LCDController {
                     // BG priority
                     if !self.cgb {
                         if oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
-                            && line[disp_x as usize] > 0
+                            && line[disp_x as usize] != COLOR_DEFAULT
                         {
                             continue;
                         }
                     } else {
-                        if line[disp_x as usize] > 0
+                        if line[disp_x as usize] != COLOR_DEFAULT
                             && (self.lcdc & LCDC_CGB_BGW_MASTER_PRIORITY
                                 == LCDC_CGB_BGW_MASTER_PRIORITY)
                             && (oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY)
@@ -606,7 +607,7 @@ impl LCDController {
             return;
         }
 
-        let mut line = [0; LCD_W];
+        let mut line = [COLOR_DEFAULT; LCD_W];
 
         // Background
         if self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
