@@ -52,6 +52,7 @@ const OAM_FLIP_Y: u8 = 1 << 6;
 const OAM_FLIP_X: u8 = 1 << 5;
 const OAM_PALETTE_DMG_MASK: u8 = 1 << 4;
 const OAM_PALETTE_DMG_SHIFT: u8 = 4;
+const OAM_VRAM_BANK: u8 = 1 << 3;
 const OAM_PALETTE_CGB_MASK: u8 = 0x07;
 const OAM_PALETTE_CGB_SHIFT: u8 = 0;
 
@@ -65,6 +66,7 @@ const CGB_PALETTE_SIZE: usize = 4;
 // BG map attributes (VRAM bank 1, CGB only)
 const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
 const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
+const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;
 
 /// Generic of the DMG and CGB palette types
 #[derive(Copy, Clone)]
@@ -289,6 +291,14 @@ impl LCDController {
         // BG/Win tiles always 8 x 8 pixels
         let tile_id = self.get_tile_id(tm_x, tm_y, selbit) as usize;
         let tile_attr = self.get_tile_attr(tm_x, tm_y, selbit);
+
+        let tile_bank_offset =
+            if self.cgb && (tile_attr & BGMAP_ATTR_VRAM_BANK) == BGMAP_ATTR_VRAM_BANK {
+                VRAM_SIZE
+            } else {
+                0
+            };
+
         let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
             // 0x8000 base offset, contiguous blocks
             0x8000 + tile_id * TILE_BSIZE
@@ -302,20 +312,25 @@ impl LCDController {
         };
 
         // Correct for our VRAM array
-        let tile_addr = (tile_addr - 0x8000) as usize;
+        let tile_addr = (tile_addr - 0x8000) as usize + tile_bank_offset;
 
         (&self.vram[tile_addr..tile_addr + TILE_BSIZE], tile_attr)
     }
 
     #[inline(always)]
-    fn get_sprite(&self, tile_idx: usize) -> &[u8] {
+    fn get_sprite(&self, tile_idx: usize, oam_flags: u8) -> &[u8] {
         // VRAM offset = 8000 - 9FFF
         // Sprites always start from 8000 (tile_idx 0)
         // Sprites can be 8x8 or 8x16 (LCDC_OBJ_SIZE)
         // In 8x16 mode, the least significant bit of tile_idx
         // is ignored.
         let offset = 0x8000;
-        let tile_addr = offset - 0x8000 + tile_idx * TILE_BSIZE;
+        let tile_bank_offset = if self.cgb && (oam_flags & OAM_VRAM_BANK) == OAM_VRAM_BANK {
+            VRAM_SIZE
+        } else {
+            0
+        };
+        let tile_addr = offset - 0x8000 + tile_idx * TILE_BSIZE + tile_bank_offset;
 
         &self.vram[tile_addr..tile_addr + TILE_BSIZE]
     }
@@ -671,7 +686,7 @@ impl LCDController {
 
                 let disp_x = e.x as isize - 8;
 
-                let sprite = self.get_sprite(tile_idx as usize).to_owned();
+                let sprite = self.get_sprite(tile_idx as usize, e.flags).to_owned();
 
                 let palette = if !self.cgb {
                     Palette::DMG(
@@ -707,7 +722,7 @@ impl LCDController {
                     } else {
                         tile_idx | 0x01
                     };
-                    let sprite2 = self.get_sprite(tile_idx2 as usize).to_owned();
+                    let sprite2 = self.get_sprite(tile_idx2 as usize, e.flags).to_owned();
                     self.draw_tile_at(
                         &sprite2,
                         &mut line,
