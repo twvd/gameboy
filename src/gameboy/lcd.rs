@@ -66,6 +66,8 @@ const COLOR_DEFAULT: Color = 0x7FFF; // White
 const CGB_PALETTE_SIZE: usize = 4;
 
 // BG map attributes (VRAM bank 1, CGB only)
+const BGMAP_ATTR_FLIP_Y: u8 = 1 << 6;
+const BGMAP_ATTR_FLIP_X: u8 = 1 << 5;
 const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
 const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
 const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;
@@ -527,6 +529,8 @@ impl LCDController {
         scanline: isize,
         wrap_x: Option<isize>,
         wrap_y: Option<isize>,
+        flip_x: bool,
+        flip_y: bool,
     ) {
         for ty in 0..TILE_H {
             // Y-axis wrap around (scrolling)
@@ -554,13 +558,13 @@ impl LCDController {
 
                 let color_idx = Self::tile_decode(
                     &tile,
-                    if obj_flags.unwrap_or(0) & OAM_FLIP_X == OAM_FLIP_X {
+                    if flip_x {
                         // Mirror along X axis
                         7 - tx as usize
                     } else {
                         tx as usize
                     },
-                    if obj_flags.unwrap_or(0) & OAM_FLIP_Y == OAM_FLIP_Y {
+                    if flip_y {
                         // Mirror along Y axis
                         7 - ty as usize
                     } else {
@@ -639,6 +643,8 @@ impl LCDController {
                     scanline,
                     Some(BGW_W * TILE_W),
                     Some(BGW_H * TILE_H),
+                    self.cgb && attr & BGMAP_ATTR_FLIP_X == BGMAP_ATTR_FLIP_X,
+                    self.cgb && attr & BGMAP_ATTR_FLIP_Y == BGMAP_ATTR_FLIP_Y,
                 );
             }
         }
@@ -673,6 +679,8 @@ impl LCDController {
                     scanline,
                     None,
                     None,
+                    self.cgb && attr & BGMAP_ATTR_FLIP_X == BGMAP_ATTR_FLIP_X,
+                    self.cgb && attr & BGMAP_ATTR_FLIP_Y == BGMAP_ATTR_FLIP_Y,
                 );
             }
         }
@@ -727,6 +735,8 @@ impl LCDController {
                     scanline,
                     None,
                     None,
+                    e.flags & OAM_FLIP_X == OAM_FLIP_X,
+                    e.flags & OAM_FLIP_Y == OAM_FLIP_Y,
                 );
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
                     // 8x16
@@ -746,6 +756,8 @@ impl LCDController {
                         scanline,
                         None,
                         None,
+                        e.flags & OAM_FLIP_X == OAM_FLIP_X,
+                        e.flags & OAM_FLIP_Y == OAM_FLIP_Y,
                     );
                 }
             }
