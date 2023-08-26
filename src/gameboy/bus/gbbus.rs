@@ -1,7 +1,7 @@
 use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
 use super::super::joypad::Joypad;
-use super::super::lcd::LCDController;
+use super::super::lcd::{LCDController, LCDStatMode};
 use super::super::timer::Timer;
 use super::bus::{Bus, BusMember};
 use crate::input::input::Input;
@@ -20,6 +20,11 @@ const BOOTROM_SIZE_DMG: usize = 0x100;
 const BOOTROM_SIZE_CGB: usize = 0x900;
 
 const IF_MASK: u8 = 0x1F;
+
+const VRAMDMA_HBLANK_MODE: u8 = 1 << 7;
+const VRAMDMA_LEN_MASK: u8 = 0x7F;
+const VRAMDMA_IDLE: u8 = 0xFF;
+const VRAMDMA_BLOCK_SIZE: usize = 0x10;
 
 /// Multiplexer for the Gameboy address bus
 pub struct Gameboybus {
@@ -58,6 +63,15 @@ pub struct Gameboybus {
 
     /// CGB - VRAM DMA destination address
     vramdma_dest: u16,
+
+    /// CGB - VRAM DMA len + HBlank mode
+    /// If Some(), then DMA is in progress. This is required
+    /// because the value for 'idle' is shared with a transfer
+    /// of 0x7F in length in HBlank mode.
+    vramdma_len: Option<u8>,
+
+    /// CGB - Track HBlank STAT mode
+    vramdma_hb_seen: bool,
 }
 
 impl Gameboybus {
@@ -93,6 +107,8 @@ impl Gameboybus {
 
             vramdma_src: 0,
             vramdma_dest: 0,
+            vramdma_len: None,
+            vramdma_hb_seen: false,
         };
 
         if let Some(br) = bootrom {
@@ -120,6 +136,66 @@ impl Gameboybus {
         }
         if self.timer.get_clr_intreq() {
             self.intflags |= cpu::INT_TIMER;
+        }
+    }
+
+    fn do_vramdma(&mut self, written_len: Option<u8>) {
+        if let Some(start_len) = written_len {
+            self.vramdma_src = self.vramdma_src & !0x000F;
+            self.vramdma_dest = (self.vramdma_dest & 0x9FF0) | 0x8000;
+
+            if let Some(len) = self.vramdma_len {
+                if len & !VRAMDMA_HBLANK_MODE == start_len {
+                    // Pause transaction
+                    self.vramdma_len = Some(start_len);
+                    return;
+                }
+            }
+
+            // Start transaction
+            self.vramdma_len = Some(start_len);
+
+            if start_len & VRAMDMA_HBLANK_MODE == VRAMDMA_HBLANK_MODE {
+                // Do the first transaction once HBlank status is observed.
+                return;
+            }
+        }
+
+        let Some(len) = self.vramdma_len else {
+            // Nothing to do..
+            return;
+        };
+        let transfer_len;
+
+        if !written_len.is_none() && len & VRAMDMA_HBLANK_MODE == 0 {
+            // Normal mode, transfer full length immediately.
+            transfer_len = (len as usize + 1) * VRAMDMA_BLOCK_SIZE;
+            self.vramdma_len = None;
+        } else if written_len.is_none() && len & VRAMDMA_HBLANK_MODE == VRAMDMA_HBLANK_MODE {
+            // HBlank mode, transfer one block
+            transfer_len = VRAMDMA_BLOCK_SIZE;
+            if (len & VRAMDMA_LEN_MASK) == 0 {
+                // Last block
+                self.vramdma_len = None;
+            } else {
+                self.vramdma_len = Some(((len & VRAMDMA_LEN_MASK) - 1) | VRAMDMA_HBLANK_MODE);
+            }
+        } else {
+            // Paused
+            return;
+        }
+
+        for _ in 0..transfer_len {
+            self.write(self.vramdma_dest, self.read(self.vramdma_src));
+
+            if self.vramdma_dest >= 0x9FFF {
+                // Destination overflow means completion
+                self.vramdma_len = None;
+                break;
+            }
+
+            self.vramdma_src = self.vramdma_src.wrapping_add(1);
+            self.vramdma_dest = self.vramdma_dest.wrapping_add(1);
         }
     }
 }
@@ -208,7 +284,7 @@ impl BusMember for Gameboybus {
             0xFF54 if self.cgb => (self.vramdma_dest & 0xFF) as u8,
 
             // CGB - HDMA5 - VRAM DMA length/mode/start
-            0xFF55 if self.cgb => 0xFF, // always return 'transfer completed'
+            0xFF55 if self.cgb => self.vramdma_len.unwrap_or(VRAMDMA_IDLE),
 
             // CGB - SVBK - WRAM bank select
             0xFF70 if self.cgb => self.wram_banksel & 0x07,
@@ -318,16 +394,7 @@ impl BusMember for Gameboybus {
             0xFF54 if self.cgb => self.vramdma_dest = self.vramdma_dest & 0xFF00 | val as u16,
 
             // CGB - HDMA5 - VRAM DMA length/mode/start
-            0xFF55 if self.cgb => {
-                let len = ((val & 0x7F) as u16 + 1) * 0x10;
-                // Ignore bit 7 (general/hblank DMA mode),
-                // we finish instantly anyway.
-                let src = self.vramdma_src & !0x000F;
-                let dest = (self.vramdma_dest & !0xE00F) | 0x8000;
-                for i in 0u16..len {
-                    self.write(dest.wrapping_add(i), self.read(src.wrapping_add(i)));
-                }
-            }
+            0xFF55 if self.cgb => self.do_vramdma(Some(val)),
 
             // CGB - SVBK / WRAM bank select
             0xFF70 if self.cgb => self.wram_banksel = cmp::max(1, val) & 0x07,
@@ -350,7 +417,18 @@ impl Tickable for Gameboybus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         self.lcd.tick(ticks)?;
         self.timer.tick(ticks)?;
+
         self.update_intflags();
+
+        // Progress HBlank DMA if active
+        let statmode = self.lcd.get_stat_mode();
+        if statmode == LCDStatMode::HBlank && !self.vramdma_hb_seen {
+            self.vramdma_hb_seen = true;
+
+            self.do_vramdma(None);
+        } else if statmode != LCDStatMode::HBlank {
+            self.vramdma_hb_seen = false;
+        }
 
         Ok(ticks)
     }
@@ -369,6 +447,8 @@ mod tests {
     use crate::gameboy::cartridge::romonly::RomOnly;
     use crate::gameboy::lcd::LCDController;
     use crate::input::input::NullInput;
+
+    use num_traits::ToPrimitive;
 
     fn gbbus() -> Gameboybus {
         let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
@@ -607,6 +687,10 @@ mod tests {
         test(0, 0x8010, 0x801F);
         test(10, 0x8010, 0x80BF);
         test(0x7F, 0x8000, 0x87FF);
+        test(0x7F, 0x8800, 0x8FFF);
+        test(10, 0x9010, 0x90BF);
+        test(0x7F, 0x9000, 0x97FF);
+        test(0x7F, 0x9800, 0x9FFF);
     }
 
     #[test]
@@ -622,7 +706,10 @@ mod tests {
         // 0xC000 - 0xC00F.
         b.write16(0xFF51, 0xC00F_u16.to_be());
         b.write16(0xFF53, 0x8000_u16.to_be());
-        b.write16(0xFF55, 0); // 0x10
+        b.write(0xFF55, 0); // 0x10
+
+        // Transfer completed, DMA idle
+        assert_eq!(b.read(0xFF55), 0xFF);
 
         for a in 0x8000_u16..=0x800F_u16 {
             assert_eq!(b.read(a), 0xAB);
@@ -643,12 +730,218 @@ mod tests {
         // to 0x8000 - 0x800F.
         b.write16(0xFF51, 0xC000_u16.to_be());
         b.write16(0xFF53, 0x000F_u16.to_be());
-        b.write16(0xFF55, 0); // 0x10
+        b.write(0xFF55, 0); // 0x10
+
+        // Transfer completed, DMA idle
+        assert_eq!(b.read(0xFF55), 0xFF);
 
         for a in 0x8000_u16..=0x800F_u16 {
             assert_eq!(b.read(a), 0xAB);
         }
         assert_ne!(b.read(0x8010), 0xAB);
         assert_ne!(b.read(0x000F), 0xAB);
+    }
+
+    #[test]
+    fn cgb_vram_dma_dest_overflow() {
+        let mut b = gbbus_cgb();
+
+        // Pattern to WRAM
+        for i in 0xC000_u16..0xC100 {
+            b.write(i, 0xAB);
+        }
+
+        // Run transfer. This is supposed to stop
+        // after one block.
+        b.write16(0xFF51, 0xC000_u16.to_be());
+        b.write16(0xFF53, 0x9FF0_u16.to_be());
+        b.write(0xFF55, 0x7F);
+
+        // Transfer completed, DMA idle
+        assert_eq!(b.read(0xFF55), 0xFF);
+
+        for a in 0x9FF0_u16..=0x9FFF_u16 {
+            println!("{:X}", a);
+            assert_eq!(b.read(a), 0xAB);
+        }
+        assert_ne!(b.read(0x8000), 0xAB);
+        assert_ne!(b.read(0xA000), 0xAB);
+    }
+
+    #[test]
+    fn cgb_vram_dma_hblank() {
+        let testex = |len: u8, start: u16, end, src: u16, dest: u16| {
+            let mut b = gbbus_cgb();
+
+            let lcd_to_stat_mode = |b: &mut Gameboybus, mode: LCDStatMode| {
+                while b.read(0xFF41) & 0x03 != mode.to_u8().unwrap() {
+                    b.tick(1).unwrap();
+                }
+            };
+
+            // Pattern to WRAM
+            for i in 0xC000_u16..0xD000 {
+                b.write(i, 0xAB);
+            }
+
+            // Check initial VRAM
+            for i in 0x8000..=0x9FFF {
+                assert_eq!(b.read(i), 0);
+            }
+
+            // DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            // Run transfer
+            b.write16(0xFF51, src.to_be());
+            b.write16(0xFF53, dest.to_be());
+            b.write(0xFF55, len | 0x80u8);
+
+            // Transfer started
+            assert_eq!(b.read(0xFF55), len | 0x80);
+            assert_ne!(b.read(start), 0xAB);
+
+            for block in 0..=(len as u16) {
+                assert_ne!(b.read(start + block * 0x10), 0xAB);
+
+                lcd_to_stat_mode(&mut b, LCDStatMode::HBlank);
+
+                // Hit HBlank, now next block should have
+                // been transfered.
+                for c in 0..0x10 {
+                    assert_eq!(b.read(start + (block * 0x10) + c), 0xAB);
+                }
+                assert_ne!(b.read(start + ((block + 1) * 0x10)), 0xAB);
+
+                // End HBlank
+                lcd_to_stat_mode(&mut b, LCDStatMode::Search);
+
+                if block != len.into() {
+                    // Check progress indication
+                    assert_eq!(b.read(0xFF55), (len - block as u8 - 1) | 0x80);
+                }
+            }
+
+            // Transfer completed, DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            assert_ne!(b.read(start - 1), 0xAB);
+            for a in start..=end {
+                assert_eq!(b.read(a), 0xAB);
+            }
+            assert_ne!(b.read(end + 1), 0xAB);
+        };
+        let test = |len, start, end| testex(len, start, end, 0xC000, start);
+
+        test(0, 0x8010, 0x801F);
+        test(10, 0x8010, 0x80BF);
+        test(0x7F, 0x8000, 0x87FF);
+        test(0x7F, 0x8800, 0x8FFF);
+        test(10, 0x9010, 0x90BF);
+        test(0x7F, 0x9000, 0x97FF);
+        test(0x7F, 0x9800, 0x9FFF);
+    }
+
+    #[test]
+    fn cgb_vram_dma_hblank_pause() {
+        let testex = |len: u8, start: u16, end, src: u16, dest: u16, pause_interval: u8| {
+            println!(
+                "testex len: {:X} start: {:X} pauseint: {:X}",
+                len, start, pause_interval
+            );
+            let mut b = gbbus_cgb();
+
+            let lcd_to_stat_mode = |b: &mut Gameboybus, mode: LCDStatMode| {
+                while b.read(0xFF41) & 0x03 != mode.to_u8().unwrap() {
+                    b.tick(1).unwrap();
+                }
+            };
+
+            // Pattern to WRAM
+            for i in 0xC000_u16..0xD000 {
+                b.write(i, 0xAB);
+            }
+
+            // Check initial VRAM
+            for i in 0x8000..=0x9FFF {
+                assert_eq!(b.read(i), 0);
+            }
+
+            // DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            // Run transfer
+            b.write16(0xFF51, src.to_be());
+            b.write16(0xFF53, dest.to_be());
+            b.write(0xFF55, len | 0x80u8);
+
+            // Transfer started
+            assert_eq!(b.read(0xFF55), len | 0x80);
+            assert_ne!(b.read(start), 0xAB);
+
+            for block in 0..=(len as u16) {
+                println!("{}", block);
+
+                if pause_interval == 0 || block % pause_interval as u16 == 0 {
+                    println!("pausing at block {}", block);
+                    // Test pause
+                    b.write(0xFF55, b.read(0xFF55) & !0x80);
+                    assert_eq!(b.read(0xFF55), (len - block as u8));
+
+                    lcd_to_stat_mode(&mut b, LCDStatMode::HBlank);
+                    assert_eq!(b.read(0xFF55), (len - block as u8));
+
+                    assert_ne!(b.read(start + block * 0x10), 0xAB);
+
+                    // Resume
+                    lcd_to_stat_mode(&mut b, LCDStatMode::Search);
+                    b.write(0xFF55, b.read(0xFF55) | 0x80);
+
+                    // Should not have written anything now until
+                    // next HBlank.
+                }
+
+                assert_ne!(b.read(start + block * 0x10), 0xAB);
+
+                lcd_to_stat_mode(&mut b, LCDStatMode::HBlank);
+
+                // Hit HBlank, now next block should have
+                // been transfered.
+                for c in 0..0x10 {
+                    assert_eq!(b.read(start + (block * 0x10) + c), 0xAB);
+                }
+                assert_ne!(b.read(start + ((block + 1) * 0x10)), 0xAB);
+
+                // End HBlank
+                lcd_to_stat_mode(&mut b, LCDStatMode::Search);
+
+                if block != len.into() {
+                    // Check progress indication
+                    assert_eq!(b.read(0xFF55), (len - block as u8 - 1) | 0x80);
+                }
+            }
+
+            // Transfer completed, DMA idle
+            assert_eq!(b.read(0xFF55), 0xFF);
+
+            assert_ne!(b.read(start - 1), 0xAB);
+            for a in start..=end {
+                assert_eq!(b.read(a), 0xAB);
+            }
+            assert_ne!(b.read(end + 1), 0xAB);
+        };
+        let test = |len, start, end| {
+            for pause_interval in 0..len {
+                testex(len, start, end, 0xC000, start, pause_interval);
+            }
+        };
+
+        test(0, 0x8010, 0x801F);
+        test(10, 0x8010, 0x80BF);
+        test(0x7F, 0x8000, 0x87FF);
+        test(0x7F, 0x8800, 0x8FFF);
+        test(10, 0x9010, 0x90BF);
+        test(0x7F, 0x9000, 0x97FF);
+        test(0x7F, 0x9800, 0x9FFF);
     }
 }

@@ -80,7 +80,7 @@ enum Palette {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
-enum LCDStatMode {
+pub enum LCDStatMode {
     Search = 2,
     Transfer = 3,
     HBlank = 0,
@@ -190,7 +190,7 @@ impl LCDController {
             vram: [0; VRAM_SIZE * VRAM_BANKS],
 
             lcdc: LCDC_ENABLE,
-            lcds: 0,
+            lcds: LCDStatMode::Search.to_u8().unwrap(),
             scy: 0,
             scx: 0,
             wx: 0,
@@ -215,7 +215,8 @@ impl LCDController {
         }
     }
 
-    fn get_stat_mode(&self) -> LCDStatMode {
+    /// Gets current stat mode based on the dot clock
+    pub fn get_stat_mode(&self) -> LCDStatMode {
         // Mode 2  2_____2_____2_____2_____2_____2___________________2____
         // Mode 3  _33____33____33____33____33____33__________________3___
         // Mode 0  ___000___000___000___000___000___000________________000
