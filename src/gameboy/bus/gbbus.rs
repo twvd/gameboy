@@ -260,16 +260,19 @@ impl BusMember for Gameboybus {
             // I/O - Audio control + wave pattern (ignore)
             0xFF10..=0xFF3F => 0,
 
-            // I/O - Boot ROM disable
-            0xFF50 if self.boot_rom_enabled => 0,
-            0xFF50 => 1,
-
             // I/O - LCD OAM DMA start
             // Handled here because we need to access source memory
             0xFF46 => 0,
 
             // I/O - LCD I/O
             0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.read_io(addr as u16),
+
+            // CGB - KEY1 - Prepare speed switch
+            0xFF4D if self.cgb => unreachable!(), // Handled by CPU
+
+            // I/O - Boot ROM disable
+            0xFF50 if self.boot_rom_enabled => 0,
+            0xFF50 => 1,
 
             // CGB - HDMA1 - VRAM DMA source (MSB)
             0xFF51 if self.cgb => (self.vramdma_src >> 8) as u8,
@@ -378,6 +381,9 @@ impl BusMember for Gameboybus {
 
             // I/O - LCD I/O
             0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.write_io(addr as u16, val),
+
+            // CGB - KEY1 - Prepare speed switch
+            0xFF4D if self.cgb => unreachable!(), // Handled by CPU
 
             // CGB - HDMA1 - VRAM DMA source (MSB)
             0xFF51 if self.cgb => self.vramdma_src = ((val as u16) << 8) | self.vramdma_src & 0xFF,

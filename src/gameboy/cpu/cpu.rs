@@ -17,6 +17,10 @@ pub const INT_TIMER: u8 = 1 << 2;
 pub const INT_SERIAL: u8 = 1 << 3;
 pub const INT_JOYPAD: u8 = 1 << 4;
 
+// KEY1 bits
+pub const KEY1_DOUBLE_SPEED: u8 = 1 << 7;
+pub const KEY1_SWITCH: u8 = 1 << 0;
+
 /// Return type of CPU::op_* functions
 type CPUOpResult = Result<OpOk>;
 
@@ -81,6 +85,9 @@ pub struct CPU {
 
     /// HALT instruction pauses CPU
     halted: bool,
+
+    /// CGB KEY1 register
+    key1: u8,
 }
 
 impl CPU {
@@ -101,6 +108,7 @@ impl CPU {
             cycles: 0,
             ime: false,
             halted: false,
+            key1: 0,
         };
         if c.read(Self::BUS_BOOTROM_DISABLE) == 1 {
             c.setup_postboot().unwrap();
@@ -612,11 +620,23 @@ impl CPU {
         Ok(OpOk::ok(self, instr))
     }
 
-    /// STOP 0 - Halts execution
+    /// STOP 0 - Halts execution / speed switch strobe
     pub fn op_stop(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.halted = true;
+        if self.cgb && self.key1 & KEY1_SWITCH == KEY1_SWITCH {
+            // Switch speeds
+            self.key1 = (self.key1 ^ KEY1_DOUBLE_SPEED) & !KEY1_SWITCH;
 
-        Ok(OpOk::ok(self, instr))
+            // The 'no branch' cycle cost is used for speed switch,
+            // which takes 2050 cycles.
+            //
+            // TODO To be entirely accurate, the timer/DIV should be
+            // frozen during this period.
+            Ok(OpOk::no_branch(self, instr))
+        } else {
+            // Normal STOP
+            self.halted = true;
+            Ok(OpOk::ok(self, instr))
+        }
     }
 
     /// HALT - Halts execution until interrupt or reset
@@ -1364,7 +1384,14 @@ impl CPU {
 
 impl Tickable for CPU {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
-        let cycles = self.step()?;
+        let mut cycles = self.step()?;
+        if self.cgb && self.key1 & KEY1_DOUBLE_SPEED == KEY1_DOUBLE_SPEED {
+            // Just run everything else at half the speed.
+            cycles = cycles / 2;
+
+            // TODO timer/DIV should actually also cycle at double speed
+            // TODO DIV should reset to 0
+        }
 
         self.bus.tick(ticks * cycles)?;
 
@@ -1377,6 +1404,9 @@ impl BusMember for CPU {
         let addr = addr as usize;
 
         match addr {
+            // KEY1 - Speed switch
+            0xFF4D if self.cgb => self.key1,
+
             _ => self.bus.read(addr as u16),
         }
     }
@@ -1385,6 +1415,9 @@ impl BusMember for CPU {
         let addr = addr as usize;
 
         match addr {
+            // KEY1 - Speed switch
+            0xFF4D if self.cgb => self.key1 = self.key1 & !KEY1_SWITCH | (val & KEY1_SWITCH),
+
             _ => self.bus.write(addr as u16, val),
         }
     }
@@ -1400,12 +1433,23 @@ mod tests {
         CPU::new(Box::new(bus), false)
     }
 
+    fn cpu_cgb(code: &[u8]) -> CPU {
+        let bus = Testbus::from(code);
+        CPU::new(Box::new(bus), true)
+    }
+
     fn cpu_run(cpu: &mut CPU) {
         cpu.step().unwrap();
     }
 
     fn run(code: &[u8]) -> CPU {
         let mut cpu = cpu(code);
+        cpu_run(&mut cpu);
+        cpu
+    }
+
+    fn run_cgb(code: &[u8]) -> CPU {
+        let mut cpu = cpu_cgb(code);
         cpu_run(&mut cpu);
         cpu
     }
@@ -2990,6 +3034,16 @@ mod tests {
     }
 
     #[test]
+    fn op_stop() {
+        let c = run(&[0x10]); // STOP 0
+        assert!(c.halted);
+
+        // CGB has additional behaviour and is therefore tested seperately.
+        let c = run_cgb(&[0x10]); // STOP 0
+        assert!(c.halted);
+    }
+
+    #[test]
     fn interrupts() {
         fn test_int(iflag: u8, addr: u16) {
             let mut c = cpu(&[0x00]); // NOP
@@ -3007,5 +3061,29 @@ mod tests {
         test_int(0x04, 0x50);
         test_int(0x08, 0x58);
         test_int(0x10, 0x60);
+    }
+
+    #[test]
+    fn cgb_speed_switch() {
+        let mut c = cpu_cgb(&[0x10]); // STOP 0
+        assert_eq!(c.read(0xFF4D), 0);
+        c.write(0xFF4D, 0x01);
+        assert_eq!(c.read(0xFF4D), 0x01);
+        let cycles = c.cycles;
+        cpu_run(&mut c);
+        assert!(!c.halted);
+        assert_eq!(c.read(0xFF4D), 0x80);
+        assert_eq!(c.cycles - cycles, 2050);
+
+        // Test switching back
+        c.regs.pc = 0x0000;
+        assert_eq!(c.read(0xFF4D), 0x80);
+        c.write(0xFF4D, 0x01);
+        assert_eq!(c.read(0xFF4D), 0x81);
+        let cycles = c.cycles;
+        cpu_run(&mut c);
+        assert!(!c.halted);
+        assert_eq!(c.read(0xFF4D), 0x00);
+        assert_eq!(c.cycles - cycles, 2050);
     }
 }

@@ -60,7 +60,7 @@ pub struct InstructionDef {
     /// if not.
     ///
     /// For unconditional instructions, use cycles[0].
-    pub cycles: [u8; 2],
+    pub cycles: [usize; 2],
 
     /// CPU function that executes the instruction.
     pub func: CPUOpFn,

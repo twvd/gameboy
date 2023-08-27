@@ -149,7 +149,8 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         mnemonic: "STOP 0",
         operands: [Operand::Constant(0), Operand::None],
         len: 2,
-        cycles: [4, 4],
+        // 'Condition not met' cycle cost is for CGB speed switch
+        cycles: [4, 2050],
         func: CPU::op_stop,
     },
     // LD DE,d16 (3), - - - -
