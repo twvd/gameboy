@@ -151,6 +151,6 @@ fn main() -> Result<()> {
             let _ = stdin().read(&mut [0u8]).unwrap();
         }
 
-        cpu.tick(1)?;
+        assert!(cpu.tick(1)? > 0);
     }
 }
