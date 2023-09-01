@@ -1,3 +1,4 @@
+use super::super::apu::APU;
 use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
 use super::super::joypad::Joypad;
@@ -42,6 +43,7 @@ pub struct Gameboybus {
     lcd: LCDController,
     timer: Timer,
     joypad: Joypad,
+    apu: APU,
 
     /// IF register
     intflags: u8,
@@ -99,6 +101,7 @@ impl Gameboybus {
             lcd,
             timer: Timer::from_div(0xAC), // Value after boot ROM
             joypad: Joypad::new(input),
+            apu: APU::new(),
 
             intflags: cpu::INT_VBLANK, // VBlank is set after boot ROM
             serialbuffer: 0,
@@ -257,8 +260,8 @@ impl BusMember for Gameboybus {
             // IF - interrupt flags
             0xFF0F => self.intflags | !IF_MASK,
 
-            // I/O - Audio control + wave pattern (ignore)
-            0xFF10..=0xFF3F => 0,
+            // I/O - APU
+            0xFF10..=0xFF3F => self.apu.read(addr as u16),
 
             // I/O - LCD OAM DMA start
             // Handled here because we need to access source memory
@@ -361,8 +364,8 @@ impl BusMember for Gameboybus {
             // IF - Interrupt Flags
             0xFF0F => self.intflags = val & IF_MASK,
 
-            // I/O - Audio control + wave pattern (ignore)
-            0xFF10..=0xFF3F => (),
+            // I/O - APU
+            0xFF10..=0xFF3F => self.apu.write(addr as u16, val),
 
             // I/O - Boot ROM disable
             0xFF50 => {
