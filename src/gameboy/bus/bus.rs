@@ -21,16 +21,19 @@ pub trait BusMember {
         ret
     }
 
-    /// Write 16-bits to addr and addr + 1,
+    /// Write 16-bits to addr + 1 and addr,
     /// in little endian.
     fn write16(&mut self, addr: u16, val: u16) {
-        self.write_slice(&u16::to_le_bytes(val), addr);
+        self.write(addr.wrapping_add(1), (val >> 8) as u8);
+        self.write(addr, val as u8);
     }
 
     /// Read 16-bits from addr and addr + 1,
     /// from little endian.
     fn read16(&self, addr: u16) -> u16 {
-        u16::from_le_bytes([self.read(addr), self.read(addr.wrapping_add(1))])
+        let l = self.read(addr);
+        let h = self.read(addr.wrapping_add(1));
+        l as u16 | (h as u16) << 8
     }
 }
 
