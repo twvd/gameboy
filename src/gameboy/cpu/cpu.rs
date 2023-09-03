@@ -743,24 +743,13 @@ impl CPU {
         assert!(dest == Register::HL || dest == Register::SP);
         let sp = self.regs.sp;
         let rel = instr.imms8(1)? as i16;
-        let sp_rel = sp.wrapping_add_signed(rel);
 
-        let (carry, halfcarry) = if rel >= 0 {
-            (
-                ((sp as i16 & 0xFF) + rel) > 0xFF,
-                ((sp as i16 & 0x0F) + (rel & 0x0F)) > 0x0F,
-            )
-        } else {
-            (
-                (sp & 0xFF) >= (sp_rel & 0xFF),
-                (sp & 0x0F) >= (sp_rel & 0x0F),
-            )
-        };
-
-        self.regs.write(dest, sp_rel)?;
+        // Use the ALU 8-bit adder for just the flags.
+        let res = alu::add_8b(sp as u8, rel as u8);
+        self.regs.write(dest, sp.wrapping_add_signed(rel))?;
         self.regs.write_flags(&[
-            (Flag::C, carry),
-            (Flag::H, halfcarry),
+            (Flag::C, res.carry),
+            (Flag::H, res.halfcarry),
             (Flag::Z, false),
             (Flag::N, false),
         ]);
@@ -2637,7 +2626,7 @@ mod tests {
         let c = run_reg(&[0xF8, 0xF0], Register::SP, 0x1000);
         assert_eq!(c.regs.read16(Register::HL).unwrap(), 0x0FF0);
         assert!(!c.regs.test_flag(Flag::C));
-        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::Z));
 
@@ -2685,7 +2674,7 @@ mod tests {
         let c = run_reg(&[0xE8, 0xF0], Register::SP, 0x1000); // ADD SP,-16
         assert_eq!(c.regs.read16(Register::SP).unwrap(), 0x0FF0);
         assert!(!c.regs.test_flag(Flag::C));
-        assert!(c.regs.test_flag(Flag::H));
+        assert!(!c.regs.test_flag(Flag::H));
         assert!(!c.regs.test_flag(Flag::N));
         assert!(!c.regs.test_flag(Flag::Z));
 
