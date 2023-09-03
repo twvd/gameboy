@@ -3,16 +3,35 @@ use anyhow::Result;
 use super::bus::{Bus, BusMember};
 use crate::tickable::Tickable;
 
+use std::cell::RefCell;
 use std::fmt;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Access {
+    Read,
+    Write,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TraceEntry {
+    pub addr: u16,
+    pub access: Access,
+    pub val: u8,
+    pub cycle: usize,
+}
 
 pub struct Testbus {
     mem: [u8; u16::MAX as usize + 1],
+    trace: RefCell<Vec<TraceEntry>>,
+    cycles: usize,
 }
 
 impl Testbus {
     pub fn new() -> Self {
         Testbus {
             mem: [0; u16::MAX as usize + 1],
+            trace: RefCell::new(vec![]),
+            cycles: 0,
         }
     }
 
@@ -21,22 +40,44 @@ impl Testbus {
         ret.write_slice(data, 0);
         ret
     }
+
+    pub fn reset_trace(&mut self) {
+        self.trace.borrow_mut().clear();
+    }
+
+    pub fn get_trace(&self) -> Vec<TraceEntry> {
+        self.trace.borrow().clone()
+    }
 }
 
 impl Bus for Testbus {}
 
 impl BusMember for Testbus {
     fn read(&self, addr: u16) -> u8 {
-        self.mem[addr as usize]
+        let val = self.mem[addr as usize];
+        self.trace.borrow_mut().push(TraceEntry {
+            addr,
+            access: Access::Read,
+            val,
+            cycle: self.cycles,
+        });
+        val
     }
 
     fn write(&mut self, addr: u16, val: u8) {
+        self.trace.borrow_mut().push(TraceEntry {
+            addr,
+            access: Access::Write,
+            val,
+            cycle: self.cycles,
+        });
         self.mem[addr as usize] = val;
     }
 }
 
 impl Tickable for Testbus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
+        self.cycles += ticks;
         Ok(ticks)
     }
 }
