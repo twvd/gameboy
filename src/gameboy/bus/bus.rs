@@ -1,4 +1,6 @@
 use crate::tickable::Tickable;
+
+use downcast_rs::{impl_downcast, Downcast};
 use std::fmt;
 
 pub trait BusMember {
@@ -46,7 +48,14 @@ pub trait BusMember {
     }
 }
 
-pub trait Bus: BusMember + fmt::Display + Tickable {}
+pub trait Bus: BusMember + fmt::Display + Tickable + Downcast {}
+impl_downcast!(Bus);
+
+impl core::fmt::Debug for dyn Bus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Bus")
+    }
+}
 
 pub struct BusIterator<'a> {
     bus: &'a dyn Bus,
