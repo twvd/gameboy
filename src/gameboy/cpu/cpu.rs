@@ -43,7 +43,7 @@ impl OpOk {
     #[inline(always)]
     fn ok(cpu: &CPU, instr: &Instruction) -> Self {
         Self {
-            pc: cpu.regs.pc + instr.len as u16,
+            pc: cpu.regs.pc.wrapping_add(instr.len as u16),
             cycles: instr.def.cycles[0].into(),
         }
     }
@@ -52,7 +52,7 @@ impl OpOk {
     #[inline(always)]
     fn no_branch(cpu: &CPU, instr: &Instruction) -> Self {
         Self {
-            pc: cpu.regs.pc + instr.len as u16,
+            pc: cpu.regs.pc.wrapping_add(instr.len as u16),
             cycles: instr.def.cycles[1].into(),
         }
     }
