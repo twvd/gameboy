@@ -721,9 +721,10 @@ impl CPU {
             }
             // LDH (a16), _
             Operand::ImmediateIndirect16 => match instr.def.operands[1] {
-                // LD (nn), reg16 should be 16-bit load
+                // LD (a16),SP writes low address first
+                Operand::Register(Register::SP) => self.write16_acc_low(instr.imm16(0)?, val),
                 Operand::Register(reg) if reg.width() == RegisterWidth::SixteenBit => {
-                    self.write16(instr.imm16(0)?, val)
+                    unreachable!()
                 }
                 // ..everything else
                 _ => self.write(instr.imm16(0)?, val.try_into()?),

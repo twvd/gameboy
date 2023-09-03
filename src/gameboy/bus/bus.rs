@@ -21,11 +21,20 @@ pub trait BusMember {
         ret
     }
 
-    /// Write 16-bits to addr + 1 and addr,
+    /// Write 16-bits to addr + 1 and addr (specific access order),
     /// in little endian.
     fn write16(&mut self, addr: u16, val: u16) {
         self.write(addr.wrapping_add(1), (val >> 8) as u8);
         self.write(addr, val as u8);
+    }
+
+    /// Write 16-bits to addr and addr + 1 (specific access order),
+    /// in little endian.
+    /// This access order is inverted, for operations that
+    /// require that..
+    fn write16_acc_low(&mut self, addr: u16, val: u16) {
+        self.write(addr, val as u8);
+        self.write(addr.wrapping_add(1), (val >> 8) as u8);
     }
 
     /// Read 16-bits from addr and addr + 1,
