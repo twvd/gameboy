@@ -242,7 +242,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
                 self.read(self.regs.read16(reg)?)
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
 
         let val = if set {
@@ -256,7 +256,7 @@ impl CPU {
             Operand::Register(reg) => self.regs.write8(reg, val)?,
             // SET/RES _, (reg)
             Operand::RegisterIndirect(reg) => self.write(self.regs.read16(reg)?, val),
-            _ => todo!(),
+            _ => unreachable!(),
         }
 
         Ok(OpOk::ok(self, instr))
@@ -827,7 +827,7 @@ impl CPU {
             }
             // OR imm8
             Operand::Immediate8 => instr.imm8(0)?,
-            _ => todo!(),
+            _ => unreachable!(),
         };
         let result = a | val;
         self.regs.write(Register::A, result.into())?;
@@ -854,7 +854,7 @@ impl CPU {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
                 self.read(self.regs.read16(r)?)
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
         let result = a ^ val;
         self.regs.write(Register::A, result.into())?;
@@ -881,7 +881,7 @@ impl CPU {
             }
             // AND imm8
             Operand::Immediate8 => instr.imm8(0)?,
-            _ => todo!(),
+            _ => unreachable!(),
         };
         let result = a & val;
         self.regs.write(Register::A, result.into())?;
@@ -1213,7 +1213,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
                 self.regs.read(reg)
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
         Ok(OpOk::branch(self, instr, new_pc))
     }
