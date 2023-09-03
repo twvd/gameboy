@@ -147,7 +147,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
     // STOP 0 (2), - - - -
     InstructionDef {
         mnemonic: "STOP 0",
-        operands: [Operand::Constant(0), Operand::None],
+        operands: [Operand::Immediate8, Operand::None],
         len: 2,
         // 'Condition not met' cycle cost is for CGB speed switch
         cycles: [4, 2050],
