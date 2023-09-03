@@ -1,6 +1,7 @@
 mod acid;
 mod blargg;
 mod mooneye;
+mod sm83;
 
 use crate::display::display::NullDisplay;
 use crate::display::test::TestDisplay;

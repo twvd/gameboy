@@ -825,7 +825,7 @@ mod tests {
                 // End HBlank
                 lcd_to_stat_mode(&mut b, LCDStatMode::Search);
 
-                if block != len.into() {
+                if block != len as u16 {
                     // Check progress indication
                     assert_eq!(b.read(0xFF55), (len - block as u8 - 1) | 0x80);
                 }
@@ -924,7 +924,7 @@ mod tests {
                 // End HBlank
                 lcd_to_stat_mode(&mut b, LCDStatMode::Search);
 
-                if block != len.into() {
+                if block != len as u16 {
                     // Check progress indication
                     assert_eq!(b.read(0xFF55), (len - block as u8 - 1) | 0x80);
                 }

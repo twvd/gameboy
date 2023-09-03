@@ -72,6 +72,7 @@ impl Register {
 }
 
 /// Complete CPU register file
+#[derive(Debug, Eq, PartialEq)]
 pub struct RegisterFile {
     /// A (accumulator) register.
     pub a: Reg,

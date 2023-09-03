@@ -1,3 +1,6 @@
 [submodule "gb-test-roms"]
 	path = tests/blargg
 	url = https://github.com/retrio/gb-test-roms.git
+[submodule "tests/sm83-test-data"]
+	path = tests/sm83-test-data
+	url = https://github.com/adtennant/sm83-test-data.git

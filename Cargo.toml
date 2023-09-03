@@ -11,10 +11,12 @@ sixel = ["dep:sixel-rs"]
 [dependencies]
 anyhow = "1.0.69"
 clap = { version = "4.1.8", features = ["derive"] }
+dbg_hex = "0.1.1"
 hex-literal = "0.4.1"
 itertools = "0.10.5"
 num-derive = "0.3.3"
 num-traits = "0.2.15"
+serde_json = "1.0.105"
 sha2 = "0.10.6"
 sixel-rs = { version = "0.3.3", optional = true }
 strum = { version = "0.24.1", features = ["derive"] }
