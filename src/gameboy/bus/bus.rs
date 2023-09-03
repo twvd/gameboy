@@ -39,16 +39,11 @@ pub trait Bus: BusMember + fmt::Display + Tickable {}
 pub struct BusIterator<'a> {
     bus: &'a dyn Bus,
     next: u16,
-    finished: bool,
 }
 
 impl<'a> BusIterator<'a> {
     pub fn new_from(bus: &'a dyn Bus, offset: u16) -> BusIterator {
-        BusIterator {
-            bus,
-            next: offset,
-            finished: false,
-        }
+        BusIterator { bus, next: offset }
     }
 
     pub fn new(bus: &'a dyn Bus) -> BusIterator {
@@ -60,16 +55,8 @@ impl<'a> Iterator for BusIterator<'a> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.finished {
-            return None;
-        }
-
         let curr = self.next;
-        if self.next == u16::MAX {
-            self.finished = true;
-        } else {
-            self.next += 1;
-        }
+        self.next = self.next.wrapping_add(1);
 
         Some(self.bus.read(curr))
     }
@@ -96,7 +83,8 @@ mod tests {
         for a in 0..=u16::MAX {
             assert_eq!(i.next(), Some(a as u8));
         }
-        assert_eq!(i.next(), None);
+        // Should wrap around at the end
+        assert_eq!(i.next(), Some(0));
     }
 
     #[test]
@@ -107,7 +95,8 @@ mod tests {
         for a in 5..=u16::MAX {
             assert_eq!(i.next(), Some(a as u8));
         }
-        assert_eq!(i.next(), None);
+        // Should wrap around at the end
+        assert_eq!(i.next(), Some(0));
     }
 
     #[test]
