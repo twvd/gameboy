@@ -6,7 +6,7 @@ use super::super::bus::bus::{Bus, BusIterator, BusMember};
 use super::alu;
 use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, ONE_MCYCLE};
 
 /// CPU clock frequency (in Hz)
 pub const CPU_CLOCK_HZ: usize = 4194304;
@@ -81,6 +81,9 @@ pub struct CPU {
     /// Total amount of cycles
     cycles: usize,
 
+    /// Memory access cycles for current instruction
+    mem_cycles: usize,
+
     /// Interrupt Master Enable
     pub ime: bool,
 
@@ -110,6 +113,7 @@ impl CPU {
             ime: false,
             halted: false,
             key1: 0,
+            mem_cycles: 0,
         };
         if c.read(Self::BUS_BOOTROM_DISABLE) == 1 {
             c.setup_postboot().unwrap();
@@ -150,9 +154,30 @@ impl CPU {
         )
     }
 
+    /// Fetches and decodes the next instruction at PC
     pub fn peek_next_instr(&self) -> Result<Instruction> {
         let mut busiter = BusIterator::new_from(self.bus.borrow(), self.regs.pc);
         Instruction::decode(&mut busiter)
+    }
+
+    /// Fetches and decodes the next instruction at PC
+    pub fn fetch_next_instr(&mut self) -> Result<Instruction> {
+        let mut fetched: Vec<u8> = vec![];
+
+        for p in 0.. {
+            match Instruction::decode(&mut fetched.clone().into_iter()) {
+                Err(_) => fetched.push(if fetched.len() == 0 {
+                    // The first instruction fetch overlaps with execution
+                    // of the last instruction.
+                    self.read(self.regs.pc.wrapping_add(p))
+                } else {
+                    self.read_tick(self.regs.pc.wrapping_add(p))
+                }),
+                Ok(i) => return Ok(i),
+            }
+        }
+
+        unreachable!()
     }
 
     fn service_interrupts(&mut self) {
@@ -201,11 +226,16 @@ impl CPU {
             return Ok(1);
         }
 
-        let instr = self.peek_next_instr()?;
+        self.mem_cycles = 0;
+        let instr = self.fetch_next_instr()?;
         let result = (instr.def.func)(self, &instr)?;
         self.regs.pc = result.pc;
+
+        assert!(self.mem_cycles <= result.cycles);
+
         self.cycles += result.cycles;
-        Ok(result.cycles)
+
+        Ok(result.cycles - self.mem_cycles)
     }
 
     pub fn get_cycles(&self) -> usize {
@@ -220,7 +250,7 @@ impl CPU {
 
     /// Pops 16-bits from the stack.
     fn stack_pop(&mut self) -> u16 {
-        let val = self.read16(self.regs.sp);
+        let val = self.read16_tick(self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(2);
         val
     }
@@ -240,7 +270,7 @@ impl CPU {
             // SET/RES _, (reg)
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             _ => unreachable!(),
         };
@@ -283,7 +313,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::shright_8b(val);
                 self.write(addr, result.result);
                 result
@@ -310,7 +340,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             _ => unreachable!(),
         };
@@ -343,7 +373,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::shleft_8b(val);
                 self.write(addr, result.result);
                 result
@@ -372,7 +402,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::shright_8b(val);
                 self.write(addr, result.result | (val & 0x80));
                 result
@@ -405,7 +435,7 @@ impl CPU {
             // BIT _, (reg)
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             _ => unreachable!(),
         };
@@ -429,7 +459,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::rotleft_9b(val, self.regs.test_flag(Flag::C));
                 self.write(addr, result.result);
                 result
@@ -472,7 +502,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::rotleft_8b(val);
                 self.write(addr, result.result);
                 result
@@ -516,7 +546,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::rotright_9b(val, self.regs.test_flag(Flag::C));
                 self.write(addr, result.result);
                 result
@@ -559,7 +589,7 @@ impl CPU {
             }
             Operand::RegisterIndirect(reg) => {
                 let addr = self.regs.read16(reg)?;
-                let val = self.read(addr);
+                let val = self.read_tick(addr);
                 let result = alu::rotright_8b(val);
                 self.write(addr, result.result);
                 result
@@ -662,9 +692,11 @@ impl CPU {
             // LD _, imm8
             Operand::Immediate8 => instr.imm8(1)?.into(),
             // LD _, (imm8)
-            Operand::ImmediateIndirect8 => self.read(0xFF00_u16 | instr.imm8(1)? as u16).into(),
+            Operand::ImmediateIndirect8 => {
+                self.read_tick(0xFF00_u16 | instr.imm8(1)? as u16).into()
+            }
             // LD _, (imm16)
-            Operand::ImmediateIndirect16 => self.read(instr.imm16(1)?).into(),
+            Operand::ImmediateIndirect16 => self.read_tick(instr.imm16(1)?).into(),
             // LD _, imm16
             Operand::Immediate16 => instr.imm16(1)?,
             // LD _, reg
@@ -676,21 +708,21 @@ impl CPU {
                     RegisterWidth::EightBit => 0xFF00 | self.regs.read8(*reg)? as u16,
                 };
 
-                self.read(addr).into()
+                self.read_tick(addr).into()
             }
             // LD _, (reg+)
             Operand::RegisterIndirectInc(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
 
                 let addr = self.regs.read_inc(*reg)?;
-                self.read(addr).into()
+                self.read_tick(addr).into()
             }
             // LD _, (reg-)
             Operand::RegisterIndirectDec(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
 
                 let addr = self.regs.read_dec(*reg)?;
-                self.read(addr).into()
+                self.read_tick(addr).into()
             }
             _ => unreachable!(),
         };
@@ -790,7 +822,7 @@ impl CPU {
             // CP (reg16)
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             _ => unreachable!(),
         };
@@ -824,7 +856,7 @@ impl CPU {
             // OR (reg)
             Operand::RegisterIndirect(r) => {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(r)?)
+                self.read_tick(self.regs.read16(r)?)
             }
             // OR imm8
             Operand::Immediate8 => instr.imm8(0)?,
@@ -853,7 +885,7 @@ impl CPU {
             // XOR (reg)
             Operand::RegisterIndirect(r) => {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(r)?)
+                self.read_tick(self.regs.read16(r)?)
             }
             _ => unreachable!(),
         };
@@ -878,7 +910,7 @@ impl CPU {
             // AND (reg)
             Operand::RegisterIndirect(r) => {
                 assert_eq!(r.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(r)?)
+                self.read_tick(self.regs.read16(r)?)
             }
             // AND imm8
             Operand::Immediate8 => instr.imm8(0)?,
@@ -931,7 +963,7 @@ impl CPU {
         let right = match instr.def.operands[1] {
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             Operand::Register(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
@@ -995,7 +1027,7 @@ impl CPU {
         let right = match instr.def.operands[1] {
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             Operand::Register(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
@@ -1056,7 +1088,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
                 self.regs.read8(reg)?
             }
-            Operand::RegisterIndirect(reg) => self.read(self.regs.read16(reg)?),
+            Operand::RegisterIndirect(reg) => self.read_tick(self.regs.read16(reg)?),
             Operand::Immediate8 => instr.imm8(0)?,
             _ => unreachable!(),
         };
@@ -1091,7 +1123,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
 
                 let addr = self.regs.read16(reg)?;
-                let res = alu::sub_8b(self.read(addr), 1);
+                let res = alu::sub_8b(self.read_tick(addr), 1);
                 self.write(addr, res.result);
                 self.regs.write_flags(&[
                     (Flag::H, res.halfcarry),
@@ -1135,7 +1167,7 @@ impl CPU {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
 
                 let addr = self.regs.read16(reg)?;
-                let res = alu::add_8b(self.read(addr), 1);
+                let res = alu::add_8b(self.read_tick(addr), 1);
                 self.write(addr, res.result);
                 self.regs.write_flags(&[
                     (Flag::H, res.halfcarry),
@@ -1336,7 +1368,7 @@ impl CPU {
         let right = match instr.def.operands[1] {
             Operand::RegisterIndirect(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::SixteenBit);
-                self.read(self.regs.read16(reg)?)
+                self.read_tick(self.regs.read16(reg)?)
             }
             Operand::Register(reg) => {
                 assert_eq!(reg.width(), RegisterWidth::EightBit);
@@ -1371,11 +1403,10 @@ impl CPU {
             self.dump_state()
         );
     }
-}
 
-impl Tickable for CPU {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
-        let mut cycles = self.step()?;
+    /// Tick peripherals
+    fn tick_bus(&mut self, ticks: usize) -> Result<usize> {
+        let mut cycles = ticks;
         if self.cgb && self.key1 & KEY1_DOUBLE_SPEED == KEY1_DOUBLE_SPEED {
             // Just run everything else at half the speed.
             cycles = cmp::max(cycles / 2, 1);
@@ -1384,7 +1415,42 @@ impl Tickable for CPU {
             // TODO DIV should reset to 0
         }
 
-        self.bus.tick(ticks * cycles)?;
+        self.bus.tick(cycles)
+    }
+
+    /// Tick peripherals for 1 M-cycle
+    fn tick_bus_mcycle(&mut self) -> Result<usize> {
+        self.mem_cycles += ONE_MCYCLE;
+        self.tick_bus(ONE_MCYCLE)
+    }
+
+    /// Reads a memory location while ticking peripherals
+    /// for the access time.
+    fn read_tick(&mut self, addr: u16) -> u8 {
+        let v = self.read(addr);
+
+        self.tick_bus_mcycle().unwrap();
+        v
+    }
+
+    /// Reads a 16-bit memory location while ticking peripherals
+    /// for the access time.
+    fn read16_tick(&mut self, addr: u16) -> u16 {
+        let l = self.read(addr);
+        self.tick_bus_mcycle().unwrap();
+
+        let h = self.read(addr.wrapping_add(1));
+        self.tick_bus_mcycle().unwrap();
+
+        l as u16 | (h as u16) << 8
+    }
+}
+
+impl Tickable for CPU {
+    fn tick(&mut self, ticks: usize) -> Result<usize> {
+        let cycles = self.step()?;
+
+        self.tick_bus(ticks * cycles)?;
 
         Ok(ticks * cycles)
     }
@@ -1411,6 +1477,8 @@ impl BusMember for CPU {
 
             _ => self.bus.write(addr as u16, val),
         }
+
+        self.tick_bus_mcycle().unwrap();
     }
 }
 
