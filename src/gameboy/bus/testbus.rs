@@ -24,6 +24,7 @@ pub struct Testbus {
     mem: [u8; u16::MAX as usize + 1],
     trace: RefCell<Vec<TraceEntry>>,
     cycles: usize,
+    trace_enabled: bool,
 }
 
 impl Testbus {
@@ -32,6 +33,7 @@ impl Testbus {
             mem: [0; u16::MAX as usize + 1],
             trace: RefCell::new(vec![]),
             cycles: 0,
+            trace_enabled: false,
         }
     }
 
@@ -43,6 +45,7 @@ impl Testbus {
 
     pub fn reset_trace(&mut self) {
         self.trace.borrow_mut().clear();
+        self.trace_enabled = true;
     }
 
     pub fn get_trace(&self) -> Vec<TraceEntry> {
@@ -55,22 +58,26 @@ impl Bus for Testbus {}
 impl BusMember for Testbus {
     fn read(&self, addr: u16) -> u8 {
         let val = self.mem[addr as usize];
-        self.trace.borrow_mut().push(TraceEntry {
-            addr,
-            access: Access::Read,
-            val,
-            cycle: self.cycles,
-        });
+        if self.trace_enabled {
+            self.trace.borrow_mut().push(TraceEntry {
+                addr,
+                access: Access::Read,
+                val,
+                cycle: self.cycles,
+            });
+        }
         val
     }
 
     fn write(&mut self, addr: u16, val: u8) {
-        self.trace.borrow_mut().push(TraceEntry {
-            addr,
-            access: Access::Write,
-            val,
-            cycle: self.cycles,
-        });
+        if self.trace_enabled {
+            self.trace.borrow_mut().push(TraceEntry {
+                addr,
+                access: Access::Write,
+                val,
+                cycle: self.cycles,
+            });
+        }
         self.mem[addr as usize] = val;
     }
 }
