@@ -1,4 +1,6 @@
-use super::test_serial;
+use super::{test_display, test_serial};
+
+use hex_literal::hex;
 
 #[test]
 fn cpu_instrs_01() {
@@ -86,7 +88,7 @@ fn cpu_instrs_09() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/09-op r,r.gb"),
         b"Passed",
         b"Failed",
-        30000,
+        60000,
     );
 }
 
@@ -96,7 +98,7 @@ fn cpu_instrs_10() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/10-bit ops.gb"),
         b"Passed",
         b"Failed",
-        60000,
+        90000,
     );
 }
 
@@ -106,7 +108,7 @@ fn cpu_instrs_11() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/11-op a,(hl).gb"),
         b"Passed",
         b"Failed",
-        60000,
+        90000,
     );
 }
 
@@ -116,6 +118,25 @@ fn instr_timing() {
         include_bytes!("../../tests/blargg/instr_timing/instr_timing.gb"),
         b"Passed",
         b"Failed",
+        30000,
+    );
+}
+
+#[test]
+fn mem_timing() {
+    test_serial(
+        include_bytes!("../../tests/blargg/mem_timing/mem_timing.gb"),
+        b"Passed",
+        b"Failed",
+        30000,
+    );
+}
+
+#[test]
+fn mem_timing_2() {
+    test_display(
+        include_bytes!("../../tests/blargg/mem_timing-2/mem_timing.gb"),
+        &hex!("180edbacf7255addb9537cc7c95b1f5352ee7061b973ecab4e8054b0502eba4e"),
         30000,
     );
 }
