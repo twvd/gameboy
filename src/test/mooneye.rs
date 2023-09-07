@@ -72,3 +72,18 @@ fn mbc5() {
         "../../tests/mooneye/emulator-only/mbc5/rom_8Mb.gb"
     );
 }
+
+#[test]
+fn ei_sequence() {
+    mooneye!("../../tests/mooneye/acceptance/ei_sequence.gb",);
+}
+
+#[test]
+fn ei_timing() {
+    mooneye!("../../tests/mooneye/acceptance/ei_timing.gb",);
+}
+
+#[test]
+fn rapid_ei_di() {
+    mooneye!("../../tests/mooneye/acceptance/rapid_di_ei.gb",);
+}

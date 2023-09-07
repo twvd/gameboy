@@ -92,6 +92,9 @@ pub struct CPU {
 
     /// CGB KEY1 register
     key1: u8,
+
+    /// EI instruction executed, enable IME after next step
+    ei: bool,
 }
 
 impl CPU {
@@ -114,6 +117,7 @@ impl CPU {
             halted: false,
             key1: 0,
             mem_cycles: 0,
+            ei: false,
         };
         if c.read(Self::BUS_BOOTROM_DISABLE) == 1 {
             c.setup_postboot().unwrap();
@@ -221,6 +225,11 @@ impl CPU {
 
     pub fn step(&mut self) -> Result<usize> {
         self.service_interrupts();
+
+        if self.ei {
+            self.ime = true;
+            self.ei = false;
+        }
 
         if self.halted {
             return Ok(1);
@@ -625,7 +634,7 @@ impl CPU {
 
     /// EI - Enable Interrupts
     pub fn op_ei(&mut self, instr: &Instruction) -> CPUOpResult {
-        self.ime = true;
+        self.ei = true;
         Ok(OpOk::ok(self, instr))
     }
 
@@ -2505,7 +2514,9 @@ mod tests {
 
     #[test]
     fn op_ei() {
-        let c = run(&[0xFB]);
+        let mut c = run(&[0xFB]);
+        assert!(!c.ime);
+        c.step().unwrap();
         assert!(c.ime);
     }
 
