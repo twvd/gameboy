@@ -87,3 +87,18 @@ fn ei_timing() {
 fn rapid_ei_di() {
     mooneye!("../../tests/mooneye/acceptance/rapid_di_ei.gb",);
 }
+
+#[test]
+fn oam_dma_timing() {
+    mooneye!("../../tests/mooneye/acceptance/oam_dma_timing.gb",);
+}
+
+#[test]
+fn oam_dma_start() {
+    mooneye!("../../tests/mooneye/acceptance/oam_dma_start.gb",);
+}
+
+#[test]
+fn oam_dma_restart() {
+    mooneye!("../../tests/mooneye/acceptance/oam_dma_restart.gb",);
+}

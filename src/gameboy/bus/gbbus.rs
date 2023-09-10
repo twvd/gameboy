@@ -6,7 +6,7 @@ use super::super::lcd::{LCDController, LCDStatMode};
 use super::super::timer::Timer;
 use super::bus::{Bus, BusMember};
 use crate::input::input::Input;
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, ONE_MCYCLE};
 
 use anyhow::Result;
 
@@ -74,6 +74,15 @@ pub struct Gameboybus {
 
     /// CGB - Track HBlank STAT mode
     vramdma_hb_seen: bool,
+
+    /// Starts OAM DMA after N cycles
+    oamdma_start: usize,
+
+    /// Amount of cycles the bus is still blocked by OAM DMA
+    oamdma_ticks: usize,
+
+    /// OAM DMA Transfer source address
+    oamdma_addr: u16,
 }
 
 impl Gameboybus {
@@ -112,6 +121,9 @@ impl Gameboybus {
             vramdma_dest: 0,
             vramdma_len: None,
             vramdma_hb_seen: false,
+            oamdma_start: 0,
+            oamdma_ticks: 0,
+            oamdma_addr: 0,
         };
 
         if let Some(br) = bootrom {
@@ -201,6 +213,39 @@ impl Gameboybus {
             self.vramdma_dest = self.vramdma_dest.wrapping_add(1);
         }
     }
+
+    fn oamdma_tick(&mut self, ticks: usize) {
+        let start_ticks = self.oamdma_start;
+        if self.oamdma_start > 0 {
+            // Transfer starting soon, in 'start delay' cycles
+            let extra_ticks = if self.oamdma_start < ticks {
+                ticks - self.oamdma_start
+            } else {
+                0
+            };
+            self.oamdma_start = self.oamdma_start.saturating_sub(ticks);
+            if self.oamdma_start == 0 {
+                // Transfer starts now
+                self.oamdma_ticks = 160 * ONE_MCYCLE - extra_ticks;
+            }
+        }
+
+        if self.oamdma_ticks == 0 {
+            // No transfer in progress
+            return;
+        }
+
+        // Transfer currently in progress, bus blocked.
+        self.oamdma_ticks = self
+            .oamdma_ticks
+            .saturating_sub(ticks.saturating_sub(start_ticks));
+        if self.oamdma_ticks == 0 {
+            // Transfer completed this tick, perform actual copy
+            for i in 0..=0x9F {
+                self.write(0xFE00 | i, self.read(self.oamdma_addr | i));
+            }
+        }
+    }
 }
 
 impl Bus for Gameboybus {}
@@ -208,6 +253,18 @@ impl Bus for Gameboybus {}
 impl BusMember for Gameboybus {
     fn read(&self, addr: u16) -> u8 {
         let addr = addr as usize;
+
+        // About bus conflicts:
+        // https://reddit.com/r/EmuDev/s/EiuFVdz031
+        if self.oamdma_ticks > 0
+            && ((0x0000..=0x7FFF).contains(&addr)
+                || (0x8000..=0x9FFF).contains(&addr)
+                || (0xA000..=0xFDFF).contains(&addr)
+                || (0xFE00..=0xFE9F).contains(&addr))
+        {
+            // Bus blocked by OAM DMA
+            return 0xFF;
+        }
 
         match addr {
             // DMG/CGB (lower part) Boot ROM
@@ -311,6 +368,18 @@ impl BusMember for Gameboybus {
     fn write(&mut self, addr: u16, val: u8) {
         let addr = addr as usize;
 
+        // About bus conflicts:
+        // https://reddit.com/r/EmuDev/s/EiuFVdz031
+        if self.oamdma_ticks > 0
+            && ((0x0000..=0x7FFF).contains(&addr)
+                || (0x8000..=0x9FFF).contains(&addr)
+                || (0xA000..=0xFDFF).contains(&addr)
+                || (0xFE00..=0xFE9F).contains(&addr))
+        {
+            // Bus blocked by OAM DMA
+            return ();
+        }
+
         match addr {
             // Cartridge ROM
             0x0000..=0x7FFF => self.cart.write(addr as u16, val),
@@ -377,9 +446,11 @@ impl BusMember for Gameboybus {
             // I/O - LCD OAM DMA start
             // Handled here because we need to access source memory
             0xFF46 => {
-                for i in 0u16..=0x9F {
-                    self.write(0xFE00 | i, self.read(((val as u16) << 8) | i));
-                }
+                // 1 M-cycle for the interval between start and actual blocking and
+                // 1 M-cycle because after this write the bus will also get a tick.
+                self.oamdma_start = 2 * ONE_MCYCLE;
+
+                self.oamdma_addr = (val as u16) << 8;
             }
 
             // I/O - LCD I/O
@@ -424,6 +495,7 @@ impl BusMember for Gameboybus {
 
 impl Tickable for Gameboybus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
+        self.oamdma_tick(ticks);
         self.lcd.tick(ticks)?;
         self.timer.tick(ticks)?;
 
