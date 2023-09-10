@@ -143,7 +143,7 @@ fn main() -> Result<()> {
     let mut cpu = CPU::new(bus, cgb);
 
     loop {
-        if args.verbose && cpu.bus.read(0xFF50) == 1 {
+        if args.verbose {
             eprintln!("{}", cpu.dump_state());
         }
 
@@ -151,6 +151,6 @@ fn main() -> Result<()> {
             let _ = stdin().read(&mut [0u8]).unwrap();
         }
 
-        assert!(cpu.tick(1)? > 0);
+        cpu.tick(1)?;
     }
 }

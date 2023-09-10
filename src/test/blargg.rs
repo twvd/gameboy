@@ -108,7 +108,7 @@ fn cpu_instrs_11() {
         include_bytes!("../../tests/blargg/cpu_instrs/individual/11-op a,(hl).gb"),
         b"Passed",
         b"Failed",
-        90000,
+        180000,
     );
 }
 
@@ -137,6 +137,6 @@ fn mem_timing_2() {
     test_display(
         include_bytes!("../../tests/blargg/mem_timing-2/mem_timing.gb"),
         &hex!("180edbacf7255addb9537cc7c95b1f5352ee7061b973ecab4e8054b0502eba4e"),
-        30000,
+        60000,
     );
 }

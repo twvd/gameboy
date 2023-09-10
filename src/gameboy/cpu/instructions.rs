@@ -150,7 +150,7 @@ pub const INSTRUCTIONS: [InstructionDef; 256] = [
         operands: [Operand::Immediate8, Operand::None],
         len: 2,
         // 'Condition not met' cycle cost is for CGB speed switch
-        cycles: [4, 2050],
+        cycles: [8, 2050],
         func: CPU::op_stop,
     },
     // LD DE,d16 (3), - - - -

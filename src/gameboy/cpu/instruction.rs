@@ -172,6 +172,11 @@ impl Instruction {
             bail!("Value not 16-bit")
         }
     }
+
+    /// Returns the (first) opcode of the instruction.
+    pub fn get_opcode(&self) -> u8 {
+        self.raw[0]
+    }
 }
 
 impl fmt::Display for Instruction {

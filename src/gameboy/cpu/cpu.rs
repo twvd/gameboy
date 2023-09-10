@@ -170,13 +170,7 @@ impl CPU {
 
         for p in 0.. {
             match Instruction::decode(&mut fetched.clone().into_iter()) {
-                Err(_) => fetched.push(if fetched.len() == 0 {
-                    // The first instruction fetch overlaps with execution
-                    // of the last instruction.
-                    self.read(self.regs.pc.wrapping_add(p))
-                } else {
-                    self.read_tick(self.regs.pc.wrapping_add(p))
-                }),
+                Err(_) => fetched.push(self.read_tick(self.regs.pc.wrapping_add(p))),
                 Ok(i) => return Ok(i),
             }
         }
@@ -184,9 +178,9 @@ impl CPU {
         unreachable!()
     }
 
-    fn service_interrupts(&mut self) {
+    fn service_interrupts(&mut self) -> Result<()> {
         if !self.ime && !self.halted {
-            return;
+            return Ok(());
         }
 
         let inte = self.read(Self::BUS_IE);
@@ -195,7 +189,9 @@ impl CPU {
 
         let mut calli = |addr, flag: u8| {
             // 2 wait states
+            self.tick_bus(2 * ONE_MCYCLE)?;
             self.cycles += 2;
+
             self.halted = false;
 
             if self.ime {
@@ -204,6 +200,8 @@ impl CPU {
                 self.ime = false;
                 self.regs.pc = addr;
             }
+
+            Ok(())
         };
 
         if service & INT_VBLANK == INT_VBLANK {
@@ -221,30 +219,45 @@ impl CPU {
         if service & INT_JOYPAD == INT_JOYPAD {
             return calli(0x60, INT_JOYPAD);
         }
+
+        Ok(())
     }
 
+    /// Executes one CPU step (one instruction).
     pub fn step(&mut self) -> Result<usize> {
-        self.service_interrupts();
+        self.service_interrupts()?;
 
         if self.ei {
+            // Setting IME is delayed by 1 instruction after EI.
             self.ime = true;
             self.ei = false;
         }
 
         if self.halted {
+            // Make sure other peripherals at least stay awake during HALT.
+            self.tick_bus_mcycle()?;
             return Ok(1);
         }
 
+        // Execute the instruction.
         self.mem_cycles = 0;
         let instr = self.fetch_next_instr()?;
         let result = (instr.def.func)(self, &instr)?;
         self.regs.pc = result.pc;
 
-        assert!(self.mem_cycles <= result.cycles);
+        let Some(cycles_left) = result.cycles.checked_sub(self.mem_cycles) else {
+            bail!("Consumed too many memory cycles");
+        };
+
+        if cycles_left > 0 {
+            // Consume any additional cycles that were listed in the
+            // definition but we did not consume with memory access or
+            // deliberate delays.
+            self.tick_bus(cycles_left)?;
+        }
 
         self.cycles += result.cycles;
-
-        Ok(result.cycles - self.mem_cycles)
+        Ok(result.cycles)
     }
 
     pub fn get_cycles(&self) -> usize {
@@ -646,6 +659,9 @@ impl CPU {
 
     /// RST - Call
     pub fn op_rst(&mut self, instr: &Instruction) -> CPUOpResult {
+        // Internal delay
+        self.tick_bus_mcycle()?;
+
         let next_addr = self.regs.pc.wrapping_add(instr.len as u16);
         self.stack_push(next_addr);
 
@@ -771,6 +787,11 @@ impl CPU {
                 _ => self.write(instr.imm16(0)?, val.try_into()?),
             },
             _ => unreachable!(),
+        }
+
+        if instr.get_opcode() == 0xF9 {
+            // Extra internal delay
+            self.tick_bus_mcycle()?;
         }
 
         Ok(OpOk::ok(self, instr))
@@ -942,6 +963,9 @@ impl CPU {
         let Operand::Register(reg) = instr.def.operands[0]
             else { unreachable!() };
         assert_eq!(reg.width(), RegisterWidth::SixteenBit);
+
+        // Internal delay
+        self.tick_bus_mcycle()?;
 
         self.stack_push(self.regs.read16(reg)?);
         Ok(OpOk::ok(self, instr))
@@ -1156,6 +1180,9 @@ impl CPU {
         self.regs
             .write(reg, self.regs.read16(reg)?.wrapping_sub(1))?;
 
+        // Internal delay
+        self.tick_bus_mcycle()?;
+
         Ok(OpOk::ok(self, instr))
     }
 
@@ -1199,6 +1226,9 @@ impl CPU {
         assert_eq!(reg.width(), RegisterWidth::SixteenBit);
         self.regs
             .write(reg, self.regs.read16(reg)?.wrapping_add(1))?;
+
+        // Internal delay
+        self.tick_bus_mcycle()?;
 
         Ok(OpOk::ok(self, instr))
     }
@@ -1290,6 +1320,9 @@ impl CPU {
         if !cc {
             return Ok(OpOk::no_branch(self, instr));
         }
+
+        // Internal delay
+        self.tick_bus_mcycle()?;
 
         let next_addr = self.regs.pc.wrapping_add(instr.len as u16);
         self.stack_push(next_addr);
@@ -1437,7 +1470,6 @@ impl CPU {
     /// for the access time.
     fn read_tick(&mut self, addr: u16) -> u8 {
         let v = self.read(addr);
-
         self.tick_bus_mcycle().unwrap();
         v
     }
@@ -1456,12 +1488,10 @@ impl CPU {
 }
 
 impl Tickable for CPU {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
+    fn tick(&mut self, _ticks: usize) -> Result<usize> {
         let cycles = self.step()?;
 
-        self.tick_bus(ticks * cycles)?;
-
-        Ok(ticks * cycles)
+        Ok(cycles)
     }
 }
 
