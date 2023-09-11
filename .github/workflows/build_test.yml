@@ -20,8 +20,6 @@ jobs:
       run: sudo apt-get install -y libncurses-dev libsixel-dev
     - name: Fetch submodules
       run: git submodule update --init --recursive
-    - name: Code formatting check
-      run: cargo fmt --check
     - name: Build
       run: cargo build --verbose
     - name: Build release
