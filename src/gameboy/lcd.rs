@@ -182,6 +182,9 @@ impl LCDController {
     /// Amount of dots in 'transfer' mode (actually 168 to 291)
     const TRANSFER_PERIOD: u128 = 200;
 
+    /// Initialization of 'dots' after LCD is enabled
+    const DOTS_INIT: u128 = 4;
+
     pub fn new(display: Box<dyn Display>, cgb: bool) -> Self {
         Self {
             output: display,
@@ -208,7 +211,7 @@ impl LCDController {
 
             redraw_pending: false,
 
-            dots: 0,
+            dots: Self::DOTS_INIT,
 
             intreq_stat: false,
             intreq_vblank: false,
@@ -786,7 +789,7 @@ impl Tickable for LCDController {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         if self.lcdc & LCDC_ENABLE == 0 {
             // PPU disabled, restart frame
-            self.dots = 0;
+            self.dots = Self::DOTS_INIT;
             self.ly = 0;
             return Ok(ticks);
         }
@@ -911,7 +914,9 @@ mod tests {
     #[test]
     fn vblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
-        for _ in 0..(LCD_H * LCDController::DOTS_PER_LINE as usize) {
+        for _ in
+            (LCDController::DOTS_INIT as usize)..(LCD_H * LCDController::DOTS_PER_LINE as usize)
+        {
             assert!(!c.in_vblank());
             c.tick(1).unwrap();
         }

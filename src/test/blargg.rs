@@ -140,3 +140,30 @@ fn mem_timing_2() {
         60000,
     );
 }
+
+#[test]
+fn oam_bug_lcd_sync() {
+    test_display(
+        include_bytes!("../../tests/blargg/oam_bug/rom_singles/1-lcd_sync.gb"),
+        &hex!("35081c557a9cb2717998045663132658cdba0fd454765a2145b14546f83587aa"),
+        60000,
+    );
+}
+
+#[test]
+fn oam_bug_non_causes() {
+    test_display(
+        include_bytes!("../../tests/blargg/oam_bug/rom_singles/3-non_causes.gb"),
+        &hex!("f417f087dc9aefd1a853719415c01f68142ab9d9e30b66c73e1ff429e5152a92"),
+        60000,
+    );
+}
+
+#[test]
+fn oam_bug_timing_no_bug() {
+    test_display(
+        include_bytes!("../../tests/blargg/oam_bug/rom_singles/6-timing_no_bug.gb"),
+        &hex!("b4cc0155826c546939b7df321b8653d7fdc5235e38f907172ecfa3f1a7947c4f"),
+        60000,
+    );
+}
