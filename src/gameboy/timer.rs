@@ -88,7 +88,10 @@ impl BusMember for Timer {
     fn write(&mut self, addr: u16, val: u8) {
         match addr {
             // DIV - Divider
-            0xFF04 => self.div = 0,
+            0xFF04 => {
+                self.div = 0;
+                self.cycles = 0;
+            }
 
             // TIMA - Timer counter
             0xFF05 => self.tima = val,

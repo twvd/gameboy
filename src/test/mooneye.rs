@@ -90,15 +90,28 @@ fn rapid_ei_di() {
 
 #[test]
 fn oam_dma_timing() {
-    mooneye!("../../tests/mooneye/acceptance/oam_dma_timing.gb",);
+    mooneye!(
+        "../../tests/mooneye/acceptance/oam_dma_timing.gb",
+        "../../tests/mooneye/acceptance/oam_dma_start.gb",
+        "../../tests/mooneye/acceptance/oam_dma_restart.gb",
+    );
 }
 
 #[test]
-fn oam_dma_start() {
-    mooneye!("../../tests/mooneye/acceptance/oam_dma_start.gb",);
-}
-
-#[test]
-fn oam_dma_restart() {
-    mooneye!("../../tests/mooneye/acceptance/oam_dma_restart.gb",);
+fn timer() {
+    mooneye!(
+        "../../tests/mooneye/acceptance/timer/div_write.gb",
+        // "../../tests/mooneye/acceptance/timer/rapid_toggle.gb",
+        "../../tests/mooneye/acceptance/timer/tim00.gb",
+        //"../../tests/mooneye/acceptance/timer/tim00_div_trigger.gb",
+        "../../tests/mooneye/acceptance/timer/tim01.gb",
+        //"../../tests/mooneye/acceptance/timer/tim01_div_trigger.gb",
+        "../../tests/mooneye/acceptance/timer/tim10.gb",
+        //"../../tests/mooneye/acceptance/timer/tim10_div_trigger.gb",
+        "../../tests/mooneye/acceptance/timer/tim11.gb",
+        //"../../tests/mooneye/acceptance/timer/tim11_div_trigger.gb",
+        //"../../tests/mooneye/acceptance/timer/tima_reload.gb",
+        //"../../tests/mooneye/acceptance/timer/tima_write_reloading.gb",
+        //"../../tests/mooneye/acceptance/timer/tma_write_reloading.gb",
+    );
 }
