@@ -32,23 +32,24 @@ impl TimerInput {
             TimerInput::CPUDiv256 => 256,
         }
     }
+
+    pub fn get_mask(&self) -> usize {
+        self.get_div() >> 1
+    }
 }
 
 pub struct Timer {
     cycles: usize,
-    div: u8,
     tima: u8,
     tma: u8,
     tac: u8,
-
     intreq: bool,
 }
 
 impl Timer {
     pub fn from_div(div: u8) -> Self {
         Self {
-            cycles: 0,
-            div,
+            cycles: (div as usize) << 8,
             tima: 0,
             tma: 0,
             tac: 0,
@@ -65,13 +66,30 @@ impl Timer {
         self.intreq = false;
         val
     }
+
+    fn update_cycles(&mut self, cycles: usize) {
+        if self.tac & TAC_ENABLE == TAC_ENABLE {
+            let mask = TimerInput::from_u8(self.tac & TAC_DIV_MASK)
+                .unwrap()
+                .get_mask();
+            if (self.cycles & mask) != 0 && (cycles & mask) == 0 {
+                self.tima = self.tima.wrapping_add(1);
+                if self.tima == 0 {
+                    self.tima = self.tma;
+                    self.intreq = true;
+                }
+            }
+        }
+
+        self.cycles = cycles;
+    }
 }
 
 impl BusMember for Timer {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             // DIV - Divider
-            0xFF04 => self.div,
+            0xFF04 => ((self.cycles >> 8) & 0xFF) as u8,
 
             // TIMA - Timer counter
             0xFF05 => self.tima,
@@ -85,13 +103,11 @@ impl BusMember for Timer {
             _ => unreachable!(),
         }
     }
+
     fn write(&mut self, addr: u16, val: u8) {
         match addr {
             // DIV - Divider
-            0xFF04 => {
-                self.div = 0;
-                self.cycles = 0;
-            }
+            0xFF04 => self.update_cycles(0),
 
             // TIMA - Timer counter
             0xFF05 => self.tima = val,
@@ -109,23 +125,8 @@ impl BusMember for Timer {
 
 impl Tickable for Timer {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
-        // TODO make this more intelligent
         for _ in 0..ticks {
-            self.cycles = (self.cycles + 1) % CPU_CLOCK_HZ;
-            if (self.cycles % TimerInput::CPUDiv256.get_div()) == 0 {
-                self.div = self.div.wrapping_add(1);
-            }
-
-            if self.tac & TAC_ENABLE == TAC_ENABLE {
-                let div = TimerInput::from_u8(self.tac & TAC_DIV_MASK).unwrap();
-                if (self.cycles % div.get_div()) == 0 {
-                    self.tima = self.tima.wrapping_add(1);
-                    if self.tima == 0 {
-                        self.tima = self.tma;
-                        self.intreq = true;
-                    }
-                }
-            }
+            self.update_cycles((self.cycles + 1) % CPU_CLOCK_HZ);
         }
 
         Ok(ticks)
