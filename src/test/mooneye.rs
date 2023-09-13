@@ -101,7 +101,7 @@ fn oam_dma_timing() {
 fn timer() {
     mooneye!(
         "../../tests/mooneye/acceptance/timer/div_write.gb",
-        //"../../tests/mooneye/acceptance/timer/rapid_toggle.gb",
+        "../../tests/mooneye/acceptance/timer/rapid_toggle.gb",
         "../../tests/mooneye/acceptance/timer/tim00.gb",
         "../../tests/mooneye/acceptance/timer/tim00_div_trigger.gb",
         "../../tests/mooneye/acceptance/timer/tim01.gb",

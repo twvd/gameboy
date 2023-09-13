@@ -67,12 +67,9 @@ impl Timer {
         val
     }
 
-    fn update_cycles(&mut self, cycles: usize) {
+    fn update_timer(&mut self, prev_bit: usize, new_bit: usize) {
         if self.tac & TAC_ENABLE == TAC_ENABLE {
-            let mask = TimerInput::from_u8(self.tac & TAC_DIV_MASK)
-                .unwrap()
-                .get_mask();
-            if (self.cycles & mask) != 0 && (cycles & mask) == 0 {
+            if prev_bit != 0 && new_bit == 0 {
                 self.tima = self.tima.wrapping_add(1);
                 if self.tima == 0 {
                     self.tima = self.tma;
@@ -80,8 +77,24 @@ impl Timer {
                 }
             }
         }
+    }
 
+    fn update_cycles(&mut self, cycles: usize) {
+        let mask = TimerInput::from_u8(self.tac & TAC_DIV_MASK)
+            .unwrap()
+            .get_mask();
+        self.update_timer(self.cycles & mask, cycles & mask);
         self.cycles = cycles;
+    }
+
+    fn update_tac(&mut self, new_tac: u8) {
+        // Timer glitch - switching input dividers may increment the timer
+        let old_mask = TimerInput::from_u8(self.tac & TAC_DIV_MASK)
+            .unwrap()
+            .get_mask();
+        self.update_timer(self.cycles & old_mask, 0);
+
+        self.tac = new_tac;
     }
 }
 
@@ -116,7 +129,7 @@ impl BusMember for Timer {
             0xFF06 => self.tma = val,
 
             // TAC - Timer control
-            0xFF07 => self.tac = val & TAC_MASK,
+            0xFF07 => self.update_tac(val & TAC_MASK),
 
             _ => unreachable!(),
         }
