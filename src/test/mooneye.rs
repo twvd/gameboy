@@ -110,7 +110,7 @@ fn timer() {
         "../../tests/mooneye/acceptance/timer/tim10_div_trigger.gb",
         "../../tests/mooneye/acceptance/timer/tim11.gb",
         "../../tests/mooneye/acceptance/timer/tim11_div_trigger.gb",
-        //"../../tests/mooneye/acceptance/timer/tima_reload.gb",
+        "../../tests/mooneye/acceptance/timer/tima_reload.gb",
         //"../../tests/mooneye/acceptance/timer/tima_write_reloading.gb",
         //"../../tests/mooneye/acceptance/timer/tma_write_reloading.gb",
     );
