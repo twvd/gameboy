@@ -253,7 +253,10 @@ impl CPU {
             // Consume any additional cycles that were listed in the
             // definition but we did not consume with memory access or
             // deliberate delays.
-            self.tick_bus(cycles_left)?;
+            for _ in 0..(cycles_left / ONE_MCYCLE) {
+                self.tick_bus_mcycle()?;
+            }
+            self.tick_bus(cycles_left % ONE_MCYCLE)?;
         }
 
         self.cycles += result.cycles;
@@ -1448,10 +1451,14 @@ impl CPU {
 
     /// Tick peripherals
     fn tick_bus(&mut self, ticks: usize) -> Result<usize> {
+        if ticks == 0 {
+            return Ok(ticks);
+        }
+
         let mut cycles = ticks;
         if self.cgb && self.key1 & KEY1_DOUBLE_SPEED == KEY1_DOUBLE_SPEED {
             // Just run everything else at half the speed.
-            cycles = cmp::max(cycles / 2, 1);
+            //cycles = cmp::max(cycles / 2, 1);
 
             // TODO timer/DIV should actually also cycle at double speed
             // TODO DIV should reset to 0
