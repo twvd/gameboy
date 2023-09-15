@@ -44,7 +44,12 @@ pub struct Timer {
     tma: u8,
     tac: u8,
     intreq: bool,
+
+    /// Timer has overflowed this cycle (set for 1 M-cycle)
     overflow: bool,
+
+    /// Timer has reloaded this cycle (set for 1 M-cycle)
+    reloaded: bool,
 }
 
 impl Timer {
@@ -56,6 +61,7 @@ impl Timer {
             tac: 0,
             intreq: false,
             overflow: false,
+            reloaded: false,
         }
     }
 
@@ -127,7 +133,18 @@ impl BusMember for Timer {
             0xFF04 => self.update_cycles(0),
 
             // TIMA - Timer counter
-            0xFF05 => self.tima = val,
+            0xFF05 => {
+                // Timer quirk - writes on the same cycle as the timer is reloaded
+                // are ignored.
+                if !self.reloaded {
+                    self.tima = val;
+                    if self.overflow {
+                        // Timer quirk - writes on the cycle the timer overflows
+                        // stops the timer from reloading and triggering an interrupt.
+                        self.overflow = false;
+                    }
+                }
+            }
 
             // TMA - Timer counter reload register
             0xFF06 => self.tma = val,
@@ -143,12 +160,17 @@ impl BusMember for Timer {
 impl Tickable for Timer {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         for _ in 0..ticks {
-            // Timer reload quirk - actual reload happens
-            // one M-cycle after overflow.
-            if self.cycles % ONE_MCYCLE == 0 && self.overflow {
-                self.tima = self.tma;
-                self.intreq = true;
-                self.overflow = false;
+            if self.cycles % ONE_MCYCLE == 0 {
+                // Timer reload quirk - actual reload happens
+                // one M-cycle after overflow.
+                if self.overflow {
+                    self.tima = self.tma;
+                    self.intreq = true;
+                    self.overflow = false;
+                    self.reloaded = true;
+                } else if self.reloaded {
+                    self.reloaded = false;
+                }
             }
 
             self.update_cycles(self.cycles.wrapping_add(1));
