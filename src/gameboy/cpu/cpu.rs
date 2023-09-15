@@ -1,6 +1,5 @@
 use anyhow::{bail, Result};
 use std::borrow::Borrow;
-use std::cmp;
 
 use super::super::bus::bus::{Bus, BusIterator, BusMember};
 use super::alu;
@@ -1455,10 +1454,9 @@ impl CPU {
             return Ok(ticks);
         }
 
-        let mut cycles = ticks;
+        let cycles = ticks;
         if self.cgb && self.key1 & KEY1_DOUBLE_SPEED == KEY1_DOUBLE_SPEED {
-            // Just run everything else at half the speed.
-            //cycles = cmp::max(cycles / 2, 1);
+            // TODO double speed
 
             // TODO timer/DIV should actually also cycle at double speed
             // TODO DIV should reset to 0
