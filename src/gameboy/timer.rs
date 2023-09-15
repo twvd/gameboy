@@ -147,7 +147,15 @@ impl BusMember for Timer {
             }
 
             // TMA - Timer counter reload register
-            0xFF06 => self.tma = val,
+            0xFF06 => {
+                self.tma = val;
+
+                // Timer quirk - if TMA is written on the cycle the timer is reloaded,
+                // TIMA also gets written to the new value.
+                if self.reloaded {
+                    self.tima = self.tma;
+                }
+            }
 
             // TAC - Timer control
             0xFF07 => self.update_tac(val & TAC_MASK),
