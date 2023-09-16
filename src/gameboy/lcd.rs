@@ -9,8 +9,13 @@ use num_traits::ToPrimitive;
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
 
-/// Type of a color definition (RGB555)
+/// Type of a (palleted) color definition (RGB555)
 pub type Color = u16;
+
+/// Type of a color index
+/// Valid values: 0 - 3
+pub type ColorIndex = u8;
+const COLORINDEX_DEFAULT: ColorIndex = 0;
 
 const VRAM_SIZE: usize = 0x2000;
 const VRAM_BANKS: usize = 2;
@@ -554,6 +559,7 @@ impl LCDController {
         &self,
         tile: &[u8],
         line: &mut [Color],
+        line_idx: &mut [ColorIndex],
         x: isize,
         y: isize,
         palette: Palette,
@@ -613,12 +619,12 @@ impl LCDController {
                     // BG priority
                     if !self.cgb {
                         if oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
-                            && line[disp_x as usize] != COLOR_DEFAULT
+                            && line_idx[disp_x as usize] != COLORINDEX_DEFAULT
                         {
                             continue;
                         }
                     } else {
-                        if line[disp_x as usize] != COLOR_DEFAULT
+                        if line_idx[disp_x as usize] != COLORINDEX_DEFAULT
                             && (self.lcdc & LCDC_CGB_BGW_MASTER_PRIORITY
                                 == LCDC_CGB_BGW_MASTER_PRIORITY)
                             && (oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY)
@@ -634,6 +640,7 @@ impl LCDController {
                 };
 
                 line[disp_x as usize] = color;
+                line_idx[disp_x as usize] = color_idx;
             }
         }
     }
@@ -644,6 +651,7 @@ impl LCDController {
         }
 
         let mut line = [COLOR_DEFAULT; LCD_W];
+        let mut line_idx = [COLORINDEX_DEFAULT; LCD_W];
 
         // Background
         if self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
@@ -668,6 +676,7 @@ impl LCDController {
                 self.draw_tile_at(
                     &tile,
                     &mut line,
+                    &mut line_idx,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
                     palette,
@@ -704,6 +713,7 @@ impl LCDController {
                 self.draw_tile_at(
                     &tile,
                     &mut line,
+                    &mut line_idx,
                     (t_x as isize * TILE_W) + self.wx as isize - 7,
                     (t_y as isize * TILE_H) + (scanline - self.wly as isize),
                     palette,
@@ -761,6 +771,7 @@ impl LCDController {
                 self.draw_tile_at(
                     &sprite,
                     &mut line,
+                    &mut line_idx,
                     disp_x,
                     disp_y,
                     palette,
@@ -782,6 +793,7 @@ impl LCDController {
                     self.draw_tile_at(
                         &sprite2,
                         &mut line,
+                        &mut line_idx,
                         disp_x,
                         disp_y + TILE_H,
                         palette,
