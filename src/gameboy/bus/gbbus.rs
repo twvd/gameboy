@@ -325,7 +325,7 @@ impl BusMember for Gameboybus {
             0xFF46 => 0,
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.read_io(addr as u16),
+            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6C => self.lcd.read_io(addr as u16),
 
             // CGB - KEY1 - Prepare speed switch
             0xFF4D if self.cgb => unreachable!(), // Handled by CPU
@@ -454,7 +454,7 @@ impl BusMember for Gameboybus {
             }
 
             // I/O - LCD I/O
-            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6B => self.lcd.write_io(addr as u16, val),
+            0xFF40..=0xFF4B | 0xFF4F | 0xFF68..=0xFF6C => self.lcd.write_io(addr as u16, val),
 
             // CGB - KEY1 - Prepare speed switch
             0xFF4D if self.cgb => unreachable!(), // Handled by CPU

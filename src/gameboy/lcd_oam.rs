@@ -47,14 +47,22 @@ impl OAMEntry {
 /// Sprite Attribute Table / Object Attribute Memory
 pub struct OAMTable {
     oam: [OAMEntry; OAM_ENTRIES],
-    cgb: bool,
+}
+
+/// Object Priority Mode
+#[derive(Debug, Clone, Copy)]
+pub enum ObjPriMode {
+    /// By X-coordinate (only option on DMG)
+    Coordinate,
+
+    /// By OAM position (default on CGB)
+    OAMPosition,
 }
 
 impl OAMTable {
-    pub fn new(cgb: bool) -> Self {
+    pub fn new() -> Self {
         Self {
             oam: [OAMEntry::new(); OAM_ENTRIES],
-            cgb,
         }
     }
 
@@ -62,12 +70,13 @@ impl OAMTable {
         &self,
         y: isize,
         sprite_h: isize,
+        mode: ObjPriMode,
     ) -> Box<dyn Iterator<Item = &OAMEntry> + '_> {
         // TODO remove the heap allocation of the iterator
 
         let y = y + 16;
-        if !self.cgb {
-            Box::new(
+        match mode {
+            ObjPriMode::Coordinate => Box::new(
                 self.oam
                     .iter()
                     // Select objects in current scanline
@@ -78,9 +87,8 @@ impl OAMTable {
                     // just sort and draw right to left.
                     .sorted_by_key(|&e| e.x)
                     .rev(),
-            )
-        } else {
-            Box::new(
+            ),
+            ObjPriMode::OAMPosition => Box::new(
                 self.oam
                     .iter()
                     // Select objects in current scanline

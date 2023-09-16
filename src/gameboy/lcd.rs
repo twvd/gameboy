@@ -1,5 +1,5 @@
 use crate::display::display::Display;
-use crate::gameboy::lcd_oam::OAMTable;
+use crate::gameboy::lcd_oam::{OAMTable, ObjPriMode};
 use crate::tickable::Tickable;
 
 use anyhow::Result;
@@ -164,6 +164,9 @@ pub struct LCDController {
 
     /// VBlank interrupt request
     intreq_vblank: bool,
+
+    /// Object priority mode
+    objpri: ObjPriMode,
 }
 
 impl LCDController {
@@ -186,10 +189,16 @@ impl LCDController {
     const DOTS_INIT: u128 = 4;
 
     pub fn new(display: Box<dyn Display>, cgb: bool) -> Self {
+        let objpri = if cgb {
+            ObjPriMode::OAMPosition
+        } else {
+            ObjPriMode::Coordinate
+        };
+
         Self {
             output: display,
             cgb,
-            oam: OAMTable::new(cgb),
+            oam: OAMTable::new(),
             vram: [0; VRAM_SIZE * VRAM_BANKS],
 
             lcdc: LCDC_ENABLE,
@@ -215,6 +224,8 @@ impl LCDController {
 
             intreq_stat: false,
             intreq_vblank: false,
+
+            objpri,
         }
     }
 
@@ -419,19 +430,28 @@ impl LCDController {
             0xFF4B => self.wx = val,
 
             // VBK - VRAM bank select (CGB)
-            0xFF4F => self.vbk = val & 1,
+            0xFF4F if self.cgb => self.vbk = val & 1,
 
             // BCPS - Background Color Palette Specification
-            0xFF68 => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+            0xFF68 if self.cgb => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
 
             // BCPD - Background Color Palette Data
-            0xFF69 => Self::write_xcpd(&mut self.cram_bg, &mut self.bcps, val),
+            0xFF69 if self.cgb => Self::write_xcpd(&mut self.cram_bg, &mut self.bcps, val),
 
             // OCPS - Object Color Palette Specification
-            0xFF6A => self.ocps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+            0xFF6A if self.cgb => self.ocps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
 
             // OCPD - Background Color Palette Data
-            0xFF6B => Self::write_xcpd(&mut self.cram_obj, &mut self.ocps, val),
+            0xFF6B if self.cgb => Self::write_xcpd(&mut self.cram_obj, &mut self.ocps, val),
+
+            // OPRI - Object Priority Mode
+            0xFF6C if self.cgb => {
+                self.objpri = if val & 0x01 == 0x01 {
+                    ObjPriMode::Coordinate
+                } else {
+                    ObjPriMode::OAMPosition
+                }
+            }
 
             _ => (),
         }
@@ -471,21 +491,29 @@ impl LCDController {
             0xFF4B => self.wx,
 
             // VBK - VRAM bank select (CGB)
-            0xFF4F => self.vbk,
+            0xFF4F if self.cgb => self.vbk,
 
             // BCPS - Background Color Palette Specification
-            0xFF68 => self.bcps,
+            0xFF68 if self.cgb => self.bcps,
 
             // BCPD - Background Color Palette Data
-            0xFF69 => Self::read_xcpd(&self.cram_bg, &self.bcps),
+            0xFF69 if self.cgb => Self::read_xcpd(&self.cram_bg, &self.bcps),
 
             // OCPS - Object Color Palette Specification
-            0xFF6A => self.ocps,
+            0xFF6A if self.cgb => self.ocps,
 
             // OCPD - Background Color Palette Data
-            0xFF6B => Self::read_xcpd(&self.cram_obj, &self.ocps),
+            0xFF6B if self.cgb => Self::read_xcpd(&self.cram_obj, &self.ocps),
 
-            _ => 0,
+            // OPRI - Object Priority Mode
+            0xFF6C if self.cgb => {
+                0xFE | match self.objpri {
+                    ObjPriMode::Coordinate => 1,
+                    ObjPriMode::OAMPosition => 0,
+                }
+            }
+
+            _ => 0xFF,
         }
     }
 
@@ -698,6 +726,7 @@ impl LCDController {
                 } else {
                     TILE_H
                 },
+                self.objpri,
             ) {
                 let disp_y = e.y as isize - 16;
                 let mut tile_idx = e.tile_idx;
@@ -1091,19 +1120,19 @@ mod tests {
 
     #[test]
     fn cram_bg() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), true);
         test_cram(0xFF68, 0xFF69, &mut c);
     }
 
     #[test]
     fn cram_obj() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), true);
         test_cram(0xFF6A, 0xFF6B, &mut c);
     }
 
     #[test]
     fn vram_bank_switching() {
-        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), true);
 
         c.write_vram(0, 0xAA);
         assert_eq!(c.vram[0], 0xAA);
