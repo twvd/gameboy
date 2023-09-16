@@ -86,8 +86,12 @@ impl OAMTable {
                     // Select objects in current scanline
                     .filter(move |&&e| (e.y as isize) <= y && (e.y as isize + sprite_h) > y)
                     // OAM scan only collects 10 objects per scanline
-                    .take(10),
-            )
+                    .take(10)
+                    // Draw in opposite order to get overlapping right
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev(),
+            ),
         }
     }
 
