@@ -89,6 +89,9 @@ struct DotState {
 
     /// Color index
     idx: ColorIndex,
+
+    /// Priority bit was set
+    priority: bool,
 }
 
 impl DotState {
@@ -96,6 +99,7 @@ impl DotState {
         Self {
             color: COLOR_DEFAULT,
             idx: COLORINDEX_DEFAULT,
+            priority: false,
         }
     }
 }
@@ -673,23 +677,17 @@ impl LCDController {
                             continue;
                         }
                     } else {
-                        // Find the BG tile under this coordinate to get
-                        // the BG priority bit there.
-                        let (_, bg_attr) = self.get_bgw_tile(
-                            (disp_x + self.scx as isize) / TILE_W,
-                            (disp_y + self.scy as isize) / TILE_H,
-                            LCDC_BG_TILEMAP,
-                        );
-
                         if line[disp_x as usize].idx != COLORINDEX_DEFAULT
                             && (self.lcdc & LCDC_CGB_BGW_MASTER_PRIORITY
                                 == LCDC_CGB_BGW_MASTER_PRIORITY)
-                            && (tile.has_priority()
-                                || (bg_attr & BGMAP_BGW_PRIORITY == BGMAP_BGW_PRIORITY))
+                            && (tile.has_priority() || line[disp_x as usize].priority)
                         {
                             continue;
                         }
                     }
+                } else {
+                    // Track priority for object blending later
+                    line[disp_x as usize].priority = tile.has_priority();
                 }
 
                 let color = match palette {
