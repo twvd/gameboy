@@ -69,7 +69,6 @@ const COLOR_DEFAULT: Color = 0x7FFF; // White
 const CGB_PALETTE_SIZE: usize = 4;
 
 // BG map attributes (VRAM bank 1, CGB only)
-const BGMAP_BGW_PRIORITY: u8 = 1 << 7;
 const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
 const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
 const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;

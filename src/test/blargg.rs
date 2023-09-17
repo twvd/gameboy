@@ -138,6 +138,7 @@ fn mem_timing_2() {
         include_bytes!("../../tests/blargg/mem_timing-2/mem_timing.gb"),
         &hex!("180edbacf7255addb9537cc7c95b1f5352ee7061b973ecab4e8054b0502eba4e"),
         60000,
+        false,
     );
 }
 
@@ -147,6 +148,7 @@ fn oam_bug_lcd_sync() {
         include_bytes!("../../tests/blargg/oam_bug/rom_singles/1-lcd_sync.gb"),
         &hex!("35081c557a9cb2717998045663132658cdba0fd454765a2145b14546f83587aa"),
         60000,
+        false,
     );
 }
 
@@ -156,6 +158,7 @@ fn oam_bug_non_causes() {
         include_bytes!("../../tests/blargg/oam_bug/rom_singles/3-non_causes.gb"),
         &hex!("f417f087dc9aefd1a853719415c01f68142ab9d9e30b66c73e1ff429e5152a92"),
         60000,
+        false,
     );
 }
 
@@ -165,5 +168,6 @@ fn oam_bug_timing_no_bug() {
         include_bytes!("../../tests/blargg/oam_bug/rom_singles/6-timing_no_bug.gb"),
         &hex!("b4cc0155826c546939b7df321b8653d7fdc5235e38f907172ecfa3f1a7947c4f"),
         60000,
+        false,
     );
 }

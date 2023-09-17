@@ -50,14 +50,14 @@ fn test_serial(rom: &[u8], pass_text: &[u8], fail_text: &[u8], time_limit: u128)
     }
 }
 
-fn test_display(rom: &[u8], pass_hash: &[u8], time_limit: u128) {
+fn test_display(rom: &[u8], pass_hash: &[u8], time_limit: u128, cgb: bool) {
     let cart = cartridge::load(rom);
     let (display, dispstatus) = TestDisplay::new(LCD_W, LCD_H);
     let input = Box::new(NullInput::new());
-    let lcd = LCDController::new(display, false);
+    let lcd = LCDController::new(display, cgb);
 
-    let bus = Box::new(Gameboybus::new(cart, None, lcd, input, false));
-    let mut cpu = CPU::new(bus, false);
+    let bus = Box::new(Gameboybus::new(cart, None, lcd, input, cgb));
+    let mut cpu = CPU::new(bus, cgb);
 
     let start = Instant::now();
     loop {
