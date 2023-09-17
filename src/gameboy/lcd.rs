@@ -53,9 +53,7 @@ const LCDS_INT_STAT_HBLANK: u8 = 1 << 3;
 const LCDS_LYC: u8 = 1 << 2;
 
 // OAM flags
-const OAM_BGW_PRIORITY: u8 = 1 << 7;
 const OAM_FLIP_Y: u8 = 1 << 6;
-const OAM_FLIP_X: u8 = 1 << 5;
 const OAM_PALETTE_DMG_MASK: u8 = 1 << 4;
 const OAM_PALETTE_DMG_SHIFT: u8 = 4;
 const OAM_VRAM_BANK: u8 = 1 << 3;
@@ -71,8 +69,7 @@ const COLOR_DEFAULT: Color = 0x7FFF; // White
 const CGB_PALETTE_SIZE: usize = 4;
 
 // BG map attributes (VRAM bank 1, CGB only)
-const BGMAP_ATTR_FLIP_Y: u8 = 1 << 6;
-const BGMAP_ATTR_FLIP_X: u8 = 1 << 5;
+const BGMAP_BGW_PRIORITY: u8 = 1 << 7;
 const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
 const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
 const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;
@@ -82,6 +79,66 @@ const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;
 enum Palette {
     DMG(u8),
     CGB([Color; CGB_PALETTE_SIZE]),
+}
+
+/// Current state of a dot while rendering
+#[derive(Copy, Clone)]
+struct DotState {
+    /// Paletted color
+    color: Color,
+
+    /// Color index
+    idx: ColorIndex,
+}
+
+impl DotState {
+    fn new() -> Self {
+        Self {
+            color: COLOR_DEFAULT,
+            idx: COLORINDEX_DEFAULT,
+        }
+    }
+}
+
+/// Tile types
+#[derive(Eq, PartialEq)]
+enum TileType {
+    Background,
+    Window,
+    Object,
+}
+
+/// Generic abstraction of bg/window/object tile + attributes
+struct Tile<'a> {
+    data: &'a [u8],
+    attr: u8,
+    ttype: TileType,
+}
+
+impl<'a> Tile<'a> {
+    pub fn new(data: &'a [u8], attr: u8, ttype: TileType) -> Self {
+        Self { data, attr, ttype }
+    }
+
+    fn flip_x(&self) -> bool {
+        (self.attr & (1 << 5)) != 0
+    }
+
+    fn flip_y(&self) -> bool {
+        (self.attr & (1 << 6)) != 0
+    }
+
+    fn has_priority(&self) -> bool {
+        (self.attr & (1 << 7)) != 0
+    }
+
+    fn is_object(&self) -> bool {
+        self.ttype == TileType::Object
+    }
+
+    fn is_bg(&self) -> bool {
+        self.ttype == TileType::Background
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive)]
@@ -557,23 +614,17 @@ impl LCDController {
 
     fn draw_tile_at(
         &self,
-        tile: &[u8],
-        line: &mut [Color],
-        line_idx: &mut [ColorIndex],
+        tile: &Tile,
+        line: &mut [DotState],
         x: isize,
         y: isize,
         palette: Palette,
-        obj_flags: Option<u8>,
         scanline: isize,
-        wrap_x: Option<isize>,
-        wrap_y: Option<isize>,
-        flip_x: bool,
-        flip_y: bool,
     ) {
         for ty in 0..TILE_H {
             // Y-axis wrap around (scrolling)
-            let disp_y = if let Some(wy) = wrap_y {
-                (y + ty).rem_euclid(wy)
+            let disp_y = if tile.is_bg() {
+                (y + ty).rem_euclid(BGW_H * TILE_H)
             } else {
                 y + ty
             };
@@ -584,8 +635,8 @@ impl LCDController {
 
             for tx in 0..TILE_W {
                 // X-axis wrap around (scrolling)
-                let disp_x = if let Some(wx) = wrap_x {
-                    (x + tx).rem_euclid(wx)
+                let disp_x = if tile.is_bg() {
+                    (x + tx).rem_euclid(BGW_W * TILE_W)
                 } else {
                     x + tx
                 };
@@ -595,14 +646,14 @@ impl LCDController {
                 }
 
                 let color_idx = Self::tile_decode(
-                    &tile,
-                    if flip_x {
+                    &tile.data,
+                    if (self.cgb || tile.is_object()) && tile.flip_x() {
                         // Mirror along X axis
                         7 - tx as usize
                     } else {
                         tx as usize
                     },
-                    if flip_y {
+                    if (self.cgb || tile.is_object()) && tile.flip_y() {
                         // Mirror along Y axis
                         7 - ty as usize
                     } else {
@@ -611,23 +662,30 @@ impl LCDController {
                 );
 
                 // Objects blend into background
-                if let Some(oflags) = obj_flags {
+                if tile.is_object() {
                     if color_idx == 0 {
                         continue;
                     }
 
                     // BG priority
                     if !self.cgb {
-                        if oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY
-                            && line_idx[disp_x as usize] != COLORINDEX_DEFAULT
-                        {
+                        if tile.has_priority() && line[disp_x as usize].idx != COLORINDEX_DEFAULT {
                             continue;
                         }
                     } else {
-                        if line_idx[disp_x as usize] != COLORINDEX_DEFAULT
+                        // Find the BG tile under this coordinate to get
+                        // the BG priority bit there.
+                        let (_, bg_attr) = self.get_bgw_tile(
+                            (disp_x + self.scx as isize) / TILE_W,
+                            (disp_y + self.scy as isize) / TILE_H,
+                            LCDC_BG_TILEMAP,
+                        );
+
+                        if line[disp_x as usize].idx != COLORINDEX_DEFAULT
                             && (self.lcdc & LCDC_CGB_BGW_MASTER_PRIORITY
                                 == LCDC_CGB_BGW_MASTER_PRIORITY)
-                            && (oflags & OAM_BGW_PRIORITY == OAM_BGW_PRIORITY)
+                            && (tile.has_priority()
+                                || (bg_attr & BGMAP_BGW_PRIORITY == BGMAP_BGW_PRIORITY))
                         {
                             continue;
                         }
@@ -639,8 +697,8 @@ impl LCDController {
                     Palette::CGB(p) => Self::palette_convert_cgb(color_idx, &p),
                 };
 
-                line[disp_x as usize] = color;
-                line_idx[disp_x as usize] = color_idx;
+                line[disp_x as usize].color = color;
+                line[disp_x as usize].idx = color_idx;
             }
         }
     }
@@ -650,8 +708,7 @@ impl LCDController {
             return;
         }
 
-        let mut line = [COLOR_DEFAULT; LCD_W];
-        let mut line_idx = [COLORINDEX_DEFAULT; LCD_W];
+        let mut line = [DotState::new(); LCD_W];
 
         // Background
         if self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
@@ -674,18 +731,12 @@ impl LCDController {
                 };
 
                 self.draw_tile_at(
-                    &tile,
+                    &Tile::new(&tile, attr, TileType::Background),
                     &mut line,
-                    &mut line_idx,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
                     palette,
-                    None,
                     scanline,
-                    Some(BGW_W * TILE_W),
-                    Some(BGW_H * TILE_H),
-                    self.cgb && attr & BGMAP_ATTR_FLIP_X == BGMAP_ATTR_FLIP_X,
-                    self.cgb && attr & BGMAP_ATTR_FLIP_Y == BGMAP_ATTR_FLIP_Y,
                 );
             }
         }
@@ -711,18 +762,12 @@ impl LCDController {
                 };
 
                 self.draw_tile_at(
-                    &tile,
+                    &Tile::new(&tile, attr, TileType::Window),
                     &mut line,
-                    &mut line_idx,
                     (t_x as isize * TILE_W) + self.wx as isize - 7,
                     (t_y as isize * TILE_H) + (scanline - self.wly as isize),
                     palette,
-                    None,
                     scanline,
-                    None,
-                    None,
-                    self.cgb && attr & BGMAP_ATTR_FLIP_X == BGMAP_ATTR_FLIP_X,
-                    self.cgb && attr & BGMAP_ATTR_FLIP_Y == BGMAP_ATTR_FLIP_Y,
                 );
             }
         }
@@ -769,18 +814,12 @@ impl LCDController {
                 };
 
                 self.draw_tile_at(
-                    &sprite,
+                    &Tile::new(&sprite, e.flags, TileType::Object),
                     &mut line,
-                    &mut line_idx,
                     disp_x,
                     disp_y,
                     palette,
-                    Some(e.flags),
                     scanline,
-                    None,
-                    None,
-                    e.flags & OAM_FLIP_X == OAM_FLIP_X,
-                    e.flags & OAM_FLIP_Y == OAM_FLIP_Y,
                 );
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
                     // 8x16
@@ -791,25 +830,19 @@ impl LCDController {
                     };
                     let sprite2 = self.get_sprite(tile_idx2 as usize, e.flags).to_owned();
                     self.draw_tile_at(
-                        &sprite2,
+                        &Tile::new(&sprite2, e.flags, TileType::Object),
                         &mut line,
-                        &mut line_idx,
                         disp_x,
                         disp_y + TILE_H,
                         palette,
-                        Some(e.flags),
                         scanline,
-                        None,
-                        None,
-                        e.flags & OAM_FLIP_X == OAM_FLIP_X,
-                        e.flags & OAM_FLIP_Y == OAM_FLIP_Y,
                     );
                 }
             }
         }
 
         for (x, c) in line.into_iter().enumerate() {
-            self.output.set_pixel(x, scanline as usize, c.into());
+            self.output.set_pixel(x, scanline as usize, c.color.into());
         }
     }
 
