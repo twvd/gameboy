@@ -54,11 +54,7 @@ const LCDS_LYC: u8 = 1 << 2;
 
 // OAM flags
 const OAM_FLIP_Y: u8 = 1 << 6;
-const OAM_PALETTE_DMG_MASK: u8 = 1 << 4;
-const OAM_PALETTE_DMG_SHIFT: u8 = 4;
 const OAM_VRAM_BANK: u8 = 1 << 3;
-const OAM_PALETTE_CGB_MASK: u8 = 0x07;
-const OAM_PALETTE_CGB_SHIFT: u8 = 0;
 
 // Gameboy Color register properties
 const CRAM_ENTRIES: usize = 0x20;
@@ -68,16 +64,34 @@ const COLOR_MASK: Color = 0x7FFF;
 const COLOR_DEFAULT: Color = 0x7FFF; // White
 const CGB_PALETTE_SIZE: usize = 4;
 
-// BG map attributes (VRAM bank 1, CGB only)
-const BGMAP_ATTR_PALETTE_MASK: u8 = 0x07;
-const BGMAP_ATTR_PALETTE_SHIFT: u8 = 0;
-const BGMAP_ATTR_VRAM_BANK: u8 = 1 << 3;
+// OAM/BG map attributes
+const TILEATTR_PALETTE_CGB_MASK: u8 = 0x07;
+const TILEATTR_PALETTE_CGB_SHIFT: u8 = 0;
+const TILEATTR_PALETTE_DMG_MASK: u8 = 1 << 4;
+const TILEATTR_PALETTE_DMG_SHIFT: u8 = 4;
+const TILEATTR_VRAM_BANK: u8 = 1 << 3;
 
 /// Generic of the DMG and CGB palette types
 #[derive(Copy, Clone)]
 enum Palette {
     DMG(u8),
     CGB([Color; CGB_PALETTE_SIZE]),
+}
+
+impl Palette {
+    /// Converts a color index to a color from this palette
+    fn get_color(&self, cidx: u8) -> Color {
+        match self {
+            Palette::DMG(p) => match (p >> (cidx * 2)) & 3 {
+                3 => 0,
+                2 => 0b01000_01000_01000,
+                1 => 0b11000_11000_11000,
+                0 => COLOR_DEFAULT,
+                _ => unreachable!(),
+            },
+            Palette::CGB(p) => p[cidx as usize],
+        }
+    }
 }
 
 /// Current state of a dot while rendering
@@ -337,54 +351,43 @@ impl LCDController {
             && (0u8..=143).contains(&self.wy)
     }
 
-    #[inline(always)]
-    fn get_tile_id(&self, tm_x: isize, tm_y: isize, selbit: u8) -> u8 {
+    fn get_bgw_tile(&self, tm_x: isize, tm_y: isize, ttype: TileType) -> Tile {
+        let selbit = match ttype {
+            TileType::Background => LCDC_BG_TILEMAP,
+            TileType::Window => LCDC_WINDOW_TILEMAP,
+            _ => unreachable!(),
+        };
+        assert!(tm_x < BGW_W && tm_y < BGW_H);
+
         // VRAM offset = 8000 - 9FFF
         // BG tile map at 9800 - 9BFF or 9C00 - 9FFF
         // Window tile map at 9800 - 9BFF or 9C00 - 9FFF
-        let offset: isize = if self.lcdc & selbit == selbit {
+        let map_offset: isize = if self.lcdc & selbit != 0 {
             0x9C00
         } else {
             0x9800
         };
 
-        assert!(tm_x < BGW_W && tm_y < BGW_H);
+        let tile_id = self.vram[(map_offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize] as usize;
 
-        self.vram[(offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
-    }
-
-    #[inline(always)]
-    fn get_tile_attr(&self, tm_x: isize, tm_y: isize, selbit: u8) -> u8 {
-        // VRAM offset = 8000 - 9FFF
-        // BG tile map at 9800 - 9BFF or 9C00 - 9FFF
-        // Window tile map at 9800 - 9BFF or 9C00 - 9FFF
-        let offset: isize = if self.lcdc & selbit == selbit {
-            0x9C00
+        // Tile attributes on BG/Window tiles is CGB-only.
+        let tile_attr = if !self.cgb {
+            0
         } else {
-            0x9800
+            self.vram[VRAM_SIZE + (map_offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
         };
 
-        assert!(tm_x < BGW_W && tm_y < BGW_H);
+        // CGB has two VRAM banks, selectable through attributes
+        let tile_bank_offset = if self.cgb && (tile_attr & TILEATTR_VRAM_BANK) != 0 {
+            VRAM_SIZE
+        } else {
+            0
+        };
 
-        self.vram[VRAM_SIZE + (offset - 0x8000 + (tm_y * BGW_H) + tm_x) as usize]
-    }
-
-    #[inline(always)]
-    fn get_bgw_tile(&self, tm_x: isize, tm_y: isize, selbit: u8) -> (&[u8], u8) {
         // VRAM offset = 8000 - 9FFF
         // BG/Win tile data at 8800 - 97FF and 8000 - 8FFF
         // BG/Win tiles always 8 x 8 pixels
-        let tile_id = self.get_tile_id(tm_x, tm_y, selbit) as usize;
-        let tile_attr = self.get_tile_attr(tm_x, tm_y, selbit);
-
-        let tile_bank_offset =
-            if self.cgb && (tile_attr & BGMAP_ATTR_VRAM_BANK) == BGMAP_ATTR_VRAM_BANK {
-                VRAM_SIZE
-            } else {
-                0
-            };
-
-        let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA == LCDC_BGW_TILEDATA {
+        let tile_addr = if self.lcdc & LCDC_BGW_TILEDATA != 0 {
             // 0x8000 base offset, contiguous blocks
             0x8000 + tile_id * TILE_BSIZE
         } else {
@@ -399,11 +402,14 @@ impl LCDController {
         // Correct for our VRAM array
         let tile_addr = (tile_addr - 0x8000) as usize + tile_bank_offset;
 
-        (&self.vram[tile_addr..tile_addr + TILE_BSIZE], tile_attr)
+        Tile::new(
+            &self.vram[tile_addr..tile_addr + TILE_BSIZE],
+            tile_attr,
+            ttype,
+        )
     }
 
-    #[inline(always)]
-    fn get_sprite(&self, tile_idx: usize, oam_flags: u8) -> &[u8] {
+    fn get_obj_tile(&self, tile_idx: usize, oam_flags: u8) -> Tile {
         // VRAM offset = 8000 - 9FFF
         // Sprites always start from 8000 (tile_idx 0)
         // Sprites can be 8x8 or 8x16 (LCDC_OBJ_SIZE)
@@ -417,10 +423,13 @@ impl LCDController {
         };
         let tile_addr = offset - 0x8000 + tile_idx * TILE_BSIZE + tile_bank_offset;
 
-        &self.vram[tile_addr..tile_addr + TILE_BSIZE]
+        Tile::new(
+            &self.vram[tile_addr..tile_addr + TILE_BSIZE],
+            oam_flags,
+            TileType::Object,
+        )
     }
 
-    #[inline(always)]
     fn tile_decode(tile: &[u8], x: usize, y: usize) -> u8 {
         // Least significant bit in the odd bytes,
         // most significant bit in the even bytes.
@@ -598,21 +607,31 @@ impl LCDController {
         self.oam.read(addr)
     }
 
-    /// Converts a color index to a color from the
-    /// BG/OBJ palettes
-    /// (DMG-mode only)
-    fn palette_convert_dmg(cidx: u8, palette: u8) -> Color {
-        match (palette >> (cidx * 2)) & 3 {
-            3 => 0,
-            2 => 0b01000_01000_01000,
-            1 => 0b11000_11000_11000,
-            0 => COLOR_DEFAULT,
-            _ => unreachable!(),
-        }
-    }
+    fn get_tile_palette(&self, tile: &Tile) -> Palette {
+        if !self.cgb {
+            let palette_val = match tile.ttype {
+                TileType::Background | TileType::Window => self.bgp,
+                TileType::Object => {
+                    self.obp[((tile.attr & TILEATTR_PALETTE_DMG_MASK) >> TILEATTR_PALETTE_DMG_SHIFT)
+                        as usize]
+                }
+            };
 
-    fn palette_convert_cgb(cidx: u8, palette: &[Color]) -> Color {
-        palette[cidx as usize]
+            return Palette::DMG(palette_val);
+        }
+
+        // For CGB, consult CRAM.
+        let palidx =
+            ((tile.attr & TILEATTR_PALETTE_CGB_MASK) >> TILEATTR_PALETTE_CGB_SHIFT) as usize;
+        let cram_offset = (palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE);
+        let cram_val: [Color; CGB_PALETTE_SIZE] = match tile.ttype {
+            TileType::Background | TileType::Window => {
+                self.cram_bg[cram_offset].try_into().unwrap()
+            }
+            TileType::Object => self.cram_obj[cram_offset].try_into().unwrap(),
+        };
+
+        Palette::CGB(cram_val)
     }
 
     fn draw_tile_at(
@@ -621,9 +640,10 @@ impl LCDController {
         line: &mut [DotState],
         x: isize,
         y: isize,
-        palette: Palette,
         scanline: isize,
     ) {
+        let palette = self.get_tile_palette(&tile);
+
         for ty in 0..TILE_H {
             // Y-axis wrap around (scrolling)
             let disp_y = if tile.is_bg() {
@@ -689,12 +709,7 @@ impl LCDController {
                     line[disp_x as usize].priority = tile.has_priority();
                 }
 
-                let color = match palette {
-                    Palette::DMG(p) => Self::palette_convert_dmg(color_idx, p),
-                    Palette::CGB(p) => Self::palette_convert_cgb(color_idx, &p),
-                };
-
-                line[disp_x as usize].color = color;
+                line[disp_x as usize].color = palette.get_color(color_idx);
                 line[disp_x as usize].idx = color_idx;
             }
         }
@@ -711,28 +726,13 @@ impl LCDController {
         if self.cgb || self.lcdc & LCDC_BGW_ENABLE == LCDC_BGW_ENABLE {
             let t_y = (scanline + self.scy as isize).rem_euclid(BGW_H * TILE_H) / TILE_H;
             for t_x in 0..BGW_W {
-                let (p_tile, attr) = self.get_bgw_tile(t_x, t_y, LCDC_BG_TILEMAP).to_owned();
-                let tile = p_tile.to_owned();
-
-                let palette = if !self.cgb {
-                    Palette::DMG(self.bgp)
-                } else {
-                    let palidx =
-                        ((attr & BGMAP_ATTR_PALETTE_MASK) >> BGMAP_ATTR_PALETTE_SHIFT) as usize;
-                    Palette::CGB(
-                        self.cram_bg
-                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
-                            .try_into()
-                            .unwrap(),
-                    )
-                };
+                let tile = self.get_bgw_tile(t_x, t_y, TileType::Background);
 
                 self.draw_tile_at(
-                    &Tile::new(&tile, attr, TileType::Background),
+                    &tile,
                     &mut line,
                     (t_x as isize * TILE_W) - self.scx as isize,
                     (t_y as isize * TILE_H) - self.scy as isize,
-                    palette,
                     scanline,
                 );
             }
@@ -742,28 +742,13 @@ impl LCDController {
         if self.is_window_active() && scanline >= self.wy as isize {
             let t_y = self.wly as isize / TILE_H;
             for t_x in 0..BGW_W {
-                let (p_tile, attr) = self.get_bgw_tile(t_x, t_y, LCDC_WINDOW_TILEMAP).to_owned();
-                let tile = p_tile.to_owned();
-
-                let palette = if !self.cgb {
-                    Palette::DMG(self.bgp)
-                } else {
-                    let palidx =
-                        ((attr & BGMAP_ATTR_PALETTE_MASK) >> BGMAP_ATTR_PALETTE_SHIFT) as usize;
-                    Palette::CGB(
-                        self.cram_bg
-                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
-                            .try_into()
-                            .unwrap(),
-                    )
-                };
+                let tile = self.get_bgw_tile(t_x, t_y, TileType::Window);
 
                 self.draw_tile_at(
-                    &Tile::new(&tile, attr, TileType::Window),
+                    &tile,
                     &mut line,
                     (t_x as isize * TILE_W) + self.wx as isize - 7,
                     (t_y as isize * TILE_H) + (scanline - self.wly as isize),
-                    palette,
                     scanline,
                 );
             }
@@ -780,60 +765,32 @@ impl LCDController {
                 },
                 self.objpri,
             ) {
+                let disp_x = e.x as isize - 8;
                 let disp_y = e.y as isize - 16;
-                let mut tile_idx = e.tile_idx;
+                let mut tile_idx = e.tile_idx as usize;
+
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
+                    // Ignore bit 0 for 8x16 objects
                     tile_idx &= !0x01;
-                    if e.flags & OAM_FLIP_Y == OAM_FLIP_Y {
+                    if e.flags & OAM_FLIP_Y != 0 {
                         // Also rotate the tiles for 8x16
                         tile_idx |= 0x01;
                     }
                 }
 
-                let disp_x = e.x as isize - 8;
+                let tile = self.get_obj_tile(tile_idx, e.flags);
 
-                let sprite = self.get_sprite(tile_idx as usize, e.flags).to_owned();
+                self.draw_tile_at(&tile, &mut line, disp_x, disp_y, scanline);
 
-                let palette = if !self.cgb {
-                    Palette::DMG(
-                        self.obp
-                            [((e.flags & OAM_PALETTE_DMG_MASK) >> OAM_PALETTE_DMG_SHIFT) as usize],
-                    )
-                } else {
-                    let palidx =
-                        ((e.flags & OAM_PALETTE_CGB_MASK) >> OAM_PALETTE_CGB_SHIFT) as usize;
-                    Palette::CGB(
-                        self.cram_obj
-                            [(palidx * CGB_PALETTE_SIZE)..((palidx + 1) * CGB_PALETTE_SIZE)]
-                            .try_into()
-                            .unwrap(),
-                    )
-                };
-
-                self.draw_tile_at(
-                    &Tile::new(&sprite, e.flags, TileType::Object),
-                    &mut line,
-                    disp_x,
-                    disp_y,
-                    palette,
-                    scanline,
-                );
                 if self.lcdc & LCDC_OBJ_SIZE == LCDC_OBJ_SIZE {
-                    // 8x16
-                    let tile_idx2 = if e.flags & OAM_FLIP_Y == OAM_FLIP_Y {
+                    // Draw second tile for 8x16 objects
+                    let tile_idx2 = if tile.flip_y() {
                         tile_idx & !0x01
                     } else {
                         tile_idx | 0x01
                     };
-                    let sprite2 = self.get_sprite(tile_idx2 as usize, e.flags).to_owned();
-                    self.draw_tile_at(
-                        &Tile::new(&sprite2, e.flags, TileType::Object),
-                        &mut line,
-                        disp_x,
-                        disp_y + TILE_H,
-                        palette,
-                        scanline,
-                    );
+                    let tile2 = self.get_obj_tile(tile_idx2, e.flags);
+                    self.draw_tile_at(&tile2, &mut line, disp_x, disp_y + TILE_H, scanline);
                 }
             }
         }
