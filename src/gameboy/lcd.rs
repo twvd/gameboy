@@ -245,6 +245,9 @@ pub struct LCDController {
     /// VBlank interrupt request
     intreq_vblank: bool,
 
+    /// STAT interrupt line
+    stat_int_line: bool,
+
     /// Object priority mode
     objpri: ObjPriMode,
 }
@@ -304,6 +307,7 @@ impl LCDController {
 
             intreq_stat: false,
             intreq_vblank: false,
+            stat_int_line: false,
 
             objpri,
         }
@@ -678,6 +682,26 @@ impl LCDController {
         self.intreq_vblank = false;
         b
     }
+
+    /// Tests STAT interrupt conditions, returns if an interrupt should fire.
+    fn check_stat_int(&mut self) -> bool {
+        let mode = self.get_stat_mode();
+        let new_line = (self.lcds & LCDS_INT_STAT_VBLANK != 0 && mode == LCDStatMode::VBlank)
+            || (self.lcds & LCDS_INT_STAT_OAM != 0 && mode == LCDStatMode::Search)
+            || (self.lcds & LCDS_INT_STAT_HBLANK != 0 && mode == LCDStatMode::HBlank)
+            || (self.lcds & LCDS_INT_LYC != 0 && self.lcds & LCDS_LYC != 0);
+
+        // STAT interrupt blocking
+        // If the current interrupt line is high, a new interrupt condition
+        // should not trigger another STAT interrupt.
+        if !self.stat_int_line && new_line {
+            self.stat_int_line = true;
+            return true;
+        }
+
+        self.stat_int_line = new_line;
+        return false;
+    }
 }
 
 impl Tickable for LCDController {
@@ -702,39 +726,12 @@ impl Tickable for LCDController {
         if newly != self.ly {
             self.ly = newly;
 
-            // Check LY compare + interrupt
-            if self.ly == self.lyc {
-                self.lcds |= LCDS_LYC;
-                if self.lcds & LCDS_INT_LYC == LCDS_INT_LYC {
-                    self.intreq_stat = true;
-                }
-            } else {
-                self.lcds &= !LCDS_LYC;
-            }
-
-            // Check VBlank / VBlank STAT interrupts
+            // Check VBlank interrupt
             if old_mode != LCDStatMode::VBlank && new_mode == LCDStatMode::VBlank {
                 self.intreq_vblank = true;
-                if self.lcds & LCDS_INT_STAT_VBLANK == LCDS_INT_STAT_VBLANK {
-                    self.intreq_stat = true;
-                }
 
                 // Reset window line counter
                 self.wly = 0;
-            }
-        }
-
-        // Check HBlank STAT interrupt
-        if old_mode != LCDStatMode::HBlank && new_mode == LCDStatMode::HBlank {
-            if self.lcds & LCDS_INT_STAT_HBLANK == LCDS_INT_STAT_HBLANK {
-                self.intreq_stat = true;
-            }
-        }
-
-        // Check OAM STAT interrupt
-        if old_mode != LCDStatMode::Search && new_mode == LCDStatMode::Search {
-            if self.lcds & LCDS_INT_STAT_OAM == LCDS_INT_STAT_OAM {
-                self.intreq_stat = true;
             }
         }
 
@@ -753,6 +750,18 @@ impl Tickable for LCDController {
 
         // Update mode register
         self.lcds = (self.lcds & !LCDS_STATMODE_MASK) | self.get_stat_mode().to_u8().unwrap();
+
+        // Check LY compare bit
+        if self.ly == self.lyc {
+            self.lcds |= LCDS_LYC;
+        } else {
+            self.lcds &= !LCDS_LYC;
+        }
+
+        // Check STAT interrupt
+        if self.check_stat_int() {
+            self.intreq_stat = true;
+        }
 
         if self.in_vblank() {
             if self.redraw_pending {

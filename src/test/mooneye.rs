@@ -115,3 +115,8 @@ fn timer() {
         "../../tests/mooneye/acceptance/timer/tma_write_reloading.gb",
     );
 }
+
+#[test]
+fn ppu_stat_irq_blocking() {
+    mooneye!("../../tests/mooneye/acceptance/ppu/stat_irq_blocking.gb",);
+}
