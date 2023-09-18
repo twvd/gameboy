@@ -1,4 +1,5 @@
 use crate::display::display::Display;
+use crate::gameboy::bus::bus::BusMember;
 use crate::gameboy::lcd_oam::{OAMTable, ObjPriMode};
 use crate::tickable::Tickable;
 
@@ -473,140 +474,6 @@ impl LCDController {
         // Auto-increment has no effect on reads
     }
 
-    pub fn write_io(&mut self, addr: u16, val: u8) {
-        match addr {
-            // LCDC - LCD control register
-            0xFF40 => self.lcdc = val,
-
-            // LCDS - LCD status register
-            0xFF41 => self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK),
-
-            // SCY - Background scrolling viewport Y
-            0xFF42 => self.scy = val,
-
-            // SCX - Background scrolling viewport X
-            0xFF43 => self.scx = val,
-
-            // LYC - LY compare
-            0xFF45 => self.lyc = val,
-
-            // BGP - Background and window palette
-            0xFF47 => self.bgp = val,
-
-            // OBPx - Object Palette
-            0xFF48 => self.obp[0] = val,
-            0xFF49 => self.obp[1] = val,
-
-            // WY - Window Y register
-            0xFF4A => self.wy = val,
-
-            // WX - Window X register
-            0xFF4B => self.wx = val,
-
-            // VBK - VRAM bank select (CGB)
-            0xFF4F if self.cgb => self.vbk = val & 1,
-
-            // BCPS - Background Color Palette Specification
-            0xFF68 if self.cgb => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
-
-            // BCPD - Background Color Palette Data
-            0xFF69 if self.cgb => Self::write_xcpd(&mut self.cram_bg, &mut self.bcps, val),
-
-            // OCPS - Object Color Palette Specification
-            0xFF6A if self.cgb => self.ocps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
-
-            // OCPD - Background Color Palette Data
-            0xFF6B if self.cgb => Self::write_xcpd(&mut self.cram_obj, &mut self.ocps, val),
-
-            // OPRI - Object Priority Mode
-            0xFF6C if self.cgb => {
-                self.objpri = if val & 0x01 == 0x01 {
-                    ObjPriMode::Coordinate
-                } else {
-                    ObjPriMode::OAMPosition
-                }
-            }
-
-            _ => (),
-        }
-    }
-
-    pub fn read_io(&self, addr: u16) -> u8 {
-        match addr {
-            // LCDC - LCD control register
-            0xFF40 => self.lcdc,
-
-            // LCDS - LCD status register
-            0xFF41 => self.lcds,
-
-            // SCY - Background scrolling viewport Y
-            0xFF42 => self.scy,
-
-            // SCX - Background scrolling viewport X
-            0xFF43 => self.scx,
-
-            // LY - LCD update Y position
-            0xFF44 => self.ly,
-
-            // LYC - LY compare
-            0xFF45 => self.lyc,
-
-            // BGP - Background and window palette
-            0xFF47 => self.bgp,
-
-            // OBPx - Object palette
-            0xFF48 => self.obp[0],
-            0xFF49 => self.obp[1],
-
-            // WY - Window Y register
-            0xFF4A => self.wy,
-
-            // WX - Window X register
-            0xFF4B => self.wx,
-
-            // VBK - VRAM bank select (CGB)
-            0xFF4F if self.cgb => self.vbk,
-
-            // BCPS - Background Color Palette Specification
-            0xFF68 if self.cgb => self.bcps,
-
-            // BCPD - Background Color Palette Data
-            0xFF69 if self.cgb => Self::read_xcpd(&self.cram_bg, &self.bcps),
-
-            // OCPS - Object Color Palette Specification
-            0xFF6A if self.cgb => self.ocps,
-
-            // OCPD - Background Color Palette Data
-            0xFF6B if self.cgb => Self::read_xcpd(&self.cram_obj, &self.ocps),
-
-            // OPRI - Object Priority Mode
-            0xFF6C if self.cgb => {
-                0xFE | match self.objpri {
-                    ObjPriMode::Coordinate => 1,
-                    ObjPriMode::OAMPosition => 0,
-                }
-            }
-
-            _ => 0xFF,
-        }
-    }
-
-    pub fn write_vram(&mut self, addr: usize, val: u8) {
-        self.vram[addr + (VRAM_SIZE * self.vbk as usize)] = val;
-    }
-
-    pub fn write_oam(&mut self, addr: usize, val: u8) {
-        self.oam.write(addr, val);
-    }
-
-    pub fn read_vram(&self, addr: usize) -> u8 {
-        self.vram[addr + (VRAM_SIZE * self.vbk as usize)]
-    }
-
-    pub fn read_oam(&self, addr: usize) -> u8 {
-        self.oam.read(addr)
-    }
-
     fn get_tile_palette(&self, tile: &Tile) -> Palette {
         if !self.cgb {
             let palette_val = match tile.ttype {
@@ -900,6 +767,140 @@ impl Tickable for LCDController {
     }
 }
 
+impl BusMember for LCDController {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            // Video RAM
+            0x8000..=0x9FFF => self.vram[addr as usize - 0x8000 + (VRAM_SIZE * self.vbk as usize)],
+
+            // Object Attribute Table (OAM)
+            0xFE00..=0xFE9F => self.oam.read(addr as usize - 0xFE00),
+
+            // LCDC - LCD control register
+            0xFF40 => self.lcdc,
+
+            // LCDS - LCD status register
+            0xFF41 => self.lcds,
+
+            // SCY - Background scrolling viewport Y
+            0xFF42 => self.scy,
+
+            // SCX - Background scrolling viewport X
+            0xFF43 => self.scx,
+
+            // LY - LCD update Y position
+            0xFF44 => self.ly,
+
+            // LYC - LY compare
+            0xFF45 => self.lyc,
+
+            // BGP - Background and window palette
+            0xFF47 => self.bgp,
+
+            // OBPx - Object palette
+            0xFF48 => self.obp[0],
+            0xFF49 => self.obp[1],
+
+            // WY - Window Y register
+            0xFF4A => self.wy,
+
+            // WX - Window X register
+            0xFF4B => self.wx,
+
+            // VBK - VRAM bank select (CGB)
+            0xFF4F if self.cgb => self.vbk,
+
+            // BCPS - Background Color Palette Specification
+            0xFF68 if self.cgb => self.bcps,
+
+            // BCPD - Background Color Palette Data
+            0xFF69 if self.cgb => Self::read_xcpd(&self.cram_bg, &self.bcps),
+
+            // OCPS - Object Color Palette Specification
+            0xFF6A if self.cgb => self.ocps,
+
+            // OCPD - Background Color Palette Data
+            0xFF6B if self.cgb => Self::read_xcpd(&self.cram_obj, &self.ocps),
+
+            // OPRI - Object Priority Mode
+            0xFF6C if self.cgb => {
+                0xFE | match self.objpri {
+                    ObjPriMode::Coordinate => 1,
+                    ObjPriMode::OAMPosition => 0,
+                }
+            }
+
+            _ => 0xFF,
+        }
+    }
+
+    fn write(&mut self, addr: u16, val: u8) {
+        let addr = addr as usize;
+
+        match addr {
+            // Video RAM
+            0x8000..=0x9FFF => self.vram[addr - 0x8000 + (VRAM_SIZE * self.vbk as usize)] = val,
+
+            // Object Attribute Table (OAM)
+            0xFE00..=0xFE9F => self.oam.write(addr - 0xFE00, val),
+
+            // LCDC - LCD control register
+            0xFF40 => self.lcdc = val,
+
+            // LCDS - LCD status register
+            0xFF41 => self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK),
+
+            // SCY - Background scrolling viewport Y
+            0xFF42 => self.scy = val,
+
+            // SCX - Background scrolling viewport X
+            0xFF43 => self.scx = val,
+
+            // LYC - LY compare
+            0xFF45 => self.lyc = val,
+
+            // BGP - Background and window palette
+            0xFF47 => self.bgp = val,
+
+            // OBPx - Object Palette
+            0xFF48 => self.obp[0] = val,
+            0xFF49 => self.obp[1] = val,
+
+            // WY - Window Y register
+            0xFF4A => self.wy = val,
+
+            // WX - Window X register
+            0xFF4B => self.wx = val,
+
+            // VBK - VRAM bank select (CGB)
+            0xFF4F if self.cgb => self.vbk = val & 1,
+
+            // BCPS - Background Color Palette Specification
+            0xFF68 if self.cgb => self.bcps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+
+            // BCPD - Background Color Palette Data
+            0xFF69 if self.cgb => Self::write_xcpd(&mut self.cram_bg, &mut self.bcps, val),
+
+            // OCPS - Object Color Palette Specification
+            0xFF6A if self.cgb => self.ocps = (val & XCPS_ADDR_MASK) | (val & XCPS_AUTO_INC),
+
+            // OCPD - Background Color Palette Data
+            0xFF6B if self.cgb => Self::write_xcpd(&mut self.cram_obj, &mut self.ocps, val),
+
+            // OPRI - Object Priority Mode
+            0xFF6C if self.cgb => {
+                self.objpri = if val & 0x01 == 0x01 {
+                    ObjPriMode::Coordinate
+                } else {
+                    ObjPriMode::OAMPosition
+                }
+            }
+
+            _ => (),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -954,29 +955,29 @@ mod tests {
     #[test]
     fn int_stat_lyc() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
-        c.write_io(0xFF45, 10);
-        c.write_io(0xFF41, LCDS_INT_LYC);
+        c.write(0xFF45, 10);
+        c.write(0xFF41, LCDS_INT_LYC);
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
-        assert!(c.read_io(0xFF41) & LCDS_LYC != LCDS_LYC);
+        assert!(c.read(0xFF41) & LCDS_LYC != LCDS_LYC);
 
         while c.ly != 10 {
             c.tick(1).unwrap();
         }
-        assert!(c.read_io(0xFF41) & LCDS_LYC == LCDS_LYC);
+        assert!(c.read(0xFF41) & LCDS_LYC == LCDS_LYC);
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
         c.tick(1).unwrap();
-        assert!(c.read_io(0xFF41) & LCDS_LYC == LCDS_LYC);
+        assert!(c.read(0xFF41) & LCDS_LYC == LCDS_LYC);
         assert!(!c.get_clr_intreq_stat());
     }
 
     #[test]
     fn int_stat_vblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
-        c.write_io(0xFF41, LCDS_INT_STAT_VBLANK);
+        c.write(0xFF41, LCDS_INT_STAT_VBLANK);
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -994,7 +995,7 @@ mod tests {
     #[test]
     fn int_stat_hblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
-        c.write_io(0xFF41, LCDS_INT_STAT_HBLANK);
+        c.write(0xFF41, LCDS_INT_STAT_HBLANK);
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -1017,7 +1018,7 @@ mod tests {
             c.tick(1).unwrap();
         }
 
-        c.write_io(0xFF41, LCDS_INT_STAT_OAM);
+        c.write(0xFF41, LCDS_INT_STAT_OAM);
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -1053,7 +1054,7 @@ mod tests {
     fn int_vblank_lcdc_disable() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
-        c.write_io(0xFF40, LCDC_ENABLE);
+        c.write(0xFF40, LCDC_ENABLE);
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_vblank());
 
@@ -1063,7 +1064,7 @@ mod tests {
         assert!(c.get_clr_intreq_vblank());
         assert!(!c.get_clr_intreq_vblank());
 
-        c.write_io(0xFF40, 0);
+        c.write(0xFF40, 0);
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_vblank());
 
@@ -1085,35 +1086,35 @@ mod tests {
         }
 
         // Test writes, byte order
-        lcd.write_io(xcps_addr, 0);
-        lcd.write_io(xcpd_addr, 0xBB);
-        lcd.write_io(xcps_addr, 1);
-        lcd.write_io(xcpd_addr, 0x7A);
+        lcd.write(xcps_addr, 0);
+        lcd.write(xcpd_addr, 0xBB);
+        lcd.write(xcps_addr, 1);
+        lcd.write(xcpd_addr, 0x7A);
         assert_eq!(read_cram!(0), 0x7ABB);
 
         // Test auto increment
-        lcd.write_io(xcps_addr, 0x20 | XCPS_AUTO_INC);
-        assert_eq!(lcd.read_io(xcps_addr), 0x20 | XCPS_AUTO_INC);
-        lcd.write_io(xcpd_addr, 0x04);
-        assert_eq!(lcd.read_io(xcps_addr), 0x21 | XCPS_AUTO_INC);
-        lcd.write_io(xcpd_addr, 0x03);
+        lcd.write(xcps_addr, 0x20 | XCPS_AUTO_INC);
+        assert_eq!(lcd.read(xcps_addr), 0x20 | XCPS_AUTO_INC);
+        lcd.write(xcpd_addr, 0x04);
+        assert_eq!(lcd.read(xcps_addr), 0x21 | XCPS_AUTO_INC);
+        lcd.write(xcpd_addr, 0x03);
         assert_eq!(read_cram!(0x10), 0x0304);
-        assert_eq!(lcd.read_io(xcps_addr), 0x22 | XCPS_AUTO_INC);
+        assert_eq!(lcd.read(xcps_addr), 0x22 | XCPS_AUTO_INC);
 
         // Test auto increment overflow
-        lcd.write_io(xcps_addr, 0x3F | XCPS_AUTO_INC);
-        assert_eq!(lcd.read_io(xcps_addr), 0x3F | XCPS_AUTO_INC);
-        lcd.write_io(xcpd_addr, 0x55);
-        assert_eq!(lcd.read_io(xcps_addr), 0x00 | XCPS_AUTO_INC);
-        lcd.write_io(xcpd_addr, 0x66);
+        lcd.write(xcps_addr, 0x3F | XCPS_AUTO_INC);
+        assert_eq!(lcd.read(xcps_addr), 0x3F | XCPS_AUTO_INC);
+        lcd.write(xcpd_addr, 0x55);
+        assert_eq!(lcd.read(xcps_addr), 0x00 | XCPS_AUTO_INC);
+        lcd.write(xcpd_addr, 0x66);
         assert_eq!(read_cram!(0x3F >> 1) & 0xFF00, 0x5500);
         assert_eq!(read_cram!(0x00) & 0x00FF, 0x0066);
 
         // Test address mask
-        lcd.write_io(xcps_addr, 0x40 | XCPS_AUTO_INC);
-        assert_eq!(lcd.read_io(xcps_addr), 0x00 | XCPS_AUTO_INC);
-        lcd.write_io(xcpd_addr, 0x0B);
-        lcd.write_io(xcpd_addr, 0x0A);
+        lcd.write(xcps_addr, 0x40 | XCPS_AUTO_INC);
+        assert_eq!(lcd.read(xcps_addr), 0x00 | XCPS_AUTO_INC);
+        lcd.write(xcpd_addr, 0x0B);
+        lcd.write(xcpd_addr, 0x0A);
         assert_eq!(read_cram!(0), 0x0A0B);
     }
 
@@ -1133,15 +1134,15 @@ mod tests {
     fn vram_bank_switching() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), true);
 
-        c.write_vram(0, 0xAA);
+        c.write(0x8000, 0xAA);
         assert_eq!(c.vram[0], 0xAA);
-        assert_eq!(c.read_vram(0), 0xAA);
+        assert_eq!(c.read(0x8000), 0xAA);
         assert_ne!(c.vram[VRAM_SIZE], 0xAA);
-        c.write_io(0xFF4F, 1);
-        assert_ne!(c.read_vram(0), 0xAA);
-        c.write_vram(0, 0xBB);
+        c.write(0xFF4F, 1);
+        assert_ne!(c.read(0x8000), 0xAA);
+        c.write(0x8000, 0xBB);
         assert_eq!(c.vram[0], 0xAA);
-        assert_eq!(c.read_vram(0), 0xBB);
+        assert_eq!(c.read(0x8000), 0xBB);
         assert_eq!(c.vram[VRAM_SIZE], 0xBB);
     }
 }
