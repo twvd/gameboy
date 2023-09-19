@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{stdin, Read};
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
@@ -22,6 +22,14 @@ use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::lcd::LCDController;
 use gbrust::input::input::{Input, NullInput};
 use gbrust::tickable::Tickable;
+
+/// Emulation mode/Gameboy model to emulate
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+enum EmulationMode {
+    Auto,
+    DMG,
+    Color,
+}
 
 #[derive(Parser)]
 #[command(
@@ -60,9 +68,17 @@ struct Args {
     #[arg(short, long)]
     serial_out: bool,
 
-    /// Gameboy Color mode
-    #[arg(short, long)]
-    cgb: bool,
+    /// Gameboy model to emulate
+    #[arg(
+        long,
+        require_equals = true,
+        value_name = "MODE",
+        num_args = 0..=1,
+        default_value_t = EmulationMode::Auto,
+        default_missing_value = "auto",
+        value_enum
+    )]
+    mode: EmulationMode,
 }
 
 fn main() -> Result<()> {
@@ -76,13 +92,10 @@ fn main() -> Result<()> {
     let cartridge = cartridge::load(&rom);
     println!("Cartridge: {}", cartridge);
 
-    let cgb = if !args.cgb {
-        false
-    } else if !cartridge.is_cgb() {
-        println!("WARNING: Ignoring CGB mode, not a CGB-compatible cartridge");
-        false
-    } else {
-        true
+    let cgb = match args.mode {
+        EmulationMode::Auto => cartridge.is_cgb(),
+        EmulationMode::DMG => false,
+        EmulationMode::Color => true,
     };
 
     if cgb {
