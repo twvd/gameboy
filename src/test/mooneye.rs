@@ -120,3 +120,15 @@ fn timer() {
 fn ppu_stat_irq_blocking() {
     mooneye!("../../tests/mooneye/acceptance/ppu/stat_irq_blocking.gb",);
 }
+
+#[test]
+fn ppu_intr() {
+    mooneye!(
+        "../../tests/mooneye/acceptance/ppu/intr_1_2_timing-GS.gb",
+        //"../../tests/mooneye/acceptance/ppu/intr_2_0_timing.gb",
+        //"../../tests/mooneye/acceptance/ppu/intr_2_mode0_timing.gb",
+        //"../../tests/mooneye/acceptance/ppu/intr_2_mode0_timing_sprites.gb",
+        "../../tests/mooneye/acceptance/ppu/intr_2_mode3_timing.gb",
+        //"../../tests/mooneye/acceptance/ppu/intr_2_oam_ok_timing.gb",
+    );
+}
