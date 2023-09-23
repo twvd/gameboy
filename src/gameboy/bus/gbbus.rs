@@ -534,25 +534,28 @@ mod tests {
     use num_traits::ToPrimitive;
 
     fn gbbus() -> Gameboybus {
-        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let cart: Rc<RefCell<dyn Cartridge>> =
+            Rc::new(RefCell::new(RomOnly::new(&[0xAA_u8; 32 * 1024])));
         let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let input = Box::new(NullInput::new());
-        Gameboybus::new(cart, None, lcd, input, false)
+        Gameboybus::new(Rc::clone(&cart), None, lcd, input, false)
     }
 
     fn gbbus_cgb() -> Gameboybus {
-        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let cart: Rc<RefCell<dyn Cartridge>> =
+            Rc::new(RefCell::new(RomOnly::new(&[0xAA_u8; 32 * 1024])));
         let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let input = Box::new(NullInput::new());
-        Gameboybus::new(cart, None, lcd, input, true)
+        Gameboybus::new(Rc::clone(&cart), None, lcd, input, true)
     }
 
     fn gbbus_bootrom() -> Gameboybus {
-        let cart = Box::new(RomOnly::new(&[0xAA_u8; 32 * 1024]));
+        let cart: Rc<RefCell<dyn Cartridge>> =
+            Rc::new(RefCell::new(RomOnly::new(&[0xAA_u8; 32 * 1024])));
         let lcd = LCDController::new(Box::new(NullDisplay::new()), false);
         let bootrom = [0xBB_u8; 256];
         let input = Box::new(NullInput::new());
-        Gameboybus::new(cart, Some(&bootrom), lcd, input, false)
+        Gameboybus::new(Rc::clone(&cart), Some(&bootrom), lcd, input, false)
     }
 
     #[test]

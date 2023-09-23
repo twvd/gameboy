@@ -1,5 +1,7 @@
 use std::fs;
-use std::io::{stdin, Read};
+use std::fs::File;
+use std::io::{stdin, Read, Write};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -88,12 +90,16 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let rom = fs::read(args.filename)?;
+    let mut savefn = PathBuf::from(&args.filename);
+    savefn.set_extension("sav");
+
+    let rom = fs::read(&args.filename)?;
+    let sav = fs::read(&savefn).unwrap_or(vec![]);
 
     let display: Box<dyn Display>;
     let input: Box<dyn Input>;
 
-    let cartridge = cartridge::load(&rom);
+    let cartridge = cartridge::load_with_save(&rom, &sav);
     println!("Cartridge: {}", cartridge.borrow());
 
     let cgb = match args.mode {
@@ -198,6 +204,9 @@ fn main() -> Result<()> {
 
         cpu.tick(1)?;
     }
+
+    let mut save = File::create(savefn)?;
+    save.write_all(&cartridge.borrow().get_save())?;
 
     Ok(())
 }

@@ -20,7 +20,7 @@ pub struct Mbc3 {
 }
 
 impl Mbc3 {
-    pub fn new(rom: &[u8]) -> Self {
+    pub fn new(rom: &[u8], save: &[u8]) -> Self {
         let mut cart = Self {
             // Too large for the stack..
             rom: vec![0; ROM_BANK_COUNT * ROM_BANK_SIZE],
@@ -29,6 +29,7 @@ impl Mbc3 {
             ram_banksel: 0,
         };
         cart.rom[0..rom.len()].copy_from_slice(rom);
+        cart.ram[0..save.len()].copy_from_slice(save);
         cart
     }
 
@@ -53,6 +54,10 @@ impl Cartridge for Mbc3 {
             "ROM bank: {:02X} - RAM bank: {:02X}",
             self.rom_banksel, self.ram_banksel
         )
+    }
+
+    fn get_save(&self) -> Vec<u8> {
+        self.ram.to_owned()
     }
 }
 
@@ -111,7 +116,7 @@ mod tests {
         );
         assert_eq!(rom.len(), ROM_BANK_COUNT * ROM_BANK_SIZE);
 
-        let mut c = Mbc3::new(&rom);
+        let mut c = Mbc3::new(&rom, &[]);
 
         // Bank 0
         for i in 0u16..(ROM_BANK_SIZE as u16) {
@@ -150,7 +155,7 @@ mod tests {
 
     #[test]
     fn ram_bank_switching() {
-        let mut c = Mbc3::new(&[]);
+        let mut c = Mbc3::new(&[], &[]);
 
         for b in 0u8..(RAM_BANK_COUNT as u8) {
             c.write(0x4000, b);
@@ -174,7 +179,7 @@ mod tests {
 
     #[test]
     fn rtc_ignored() {
-        let mut c = Mbc3::new(&[]);
+        let mut c = Mbc3::new(&[], &[]);
 
         for b in 0x08..=0x0C {
             c.write(0x4000, b);

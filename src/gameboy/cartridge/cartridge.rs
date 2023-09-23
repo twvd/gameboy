@@ -103,6 +103,8 @@ pub trait Cartridge: BusMember {
     }
 
     fn dump_state(&self) -> String;
+
+    fn get_save(&self) -> Vec<u8>;
 }
 
 impl fmt::Display for dyn Cartridge {
@@ -122,20 +124,24 @@ impl fmt::Display for dyn Cartridge {
 }
 
 pub fn load(rom: &[u8]) -> Rc<RefCell<dyn Cartridge>> {
+    load_with_save(rom, &[])
+}
+
+pub fn load_with_save(rom: &[u8], save: &[u8]) -> Rc<RefCell<dyn Cartridge>> {
     assert!(rom.len() >= 32 * 1024);
 
     match CartridgeType::from_u8(rom[CARTTYPE_OFFSET]) {
         Some(CartridgeType::Rom) => Rc::new(RefCell::new(RomOnly::new(rom))),
-        Some(CartridgeType::Mbc1) => Rc::new(RefCell::new(Mbc1::new(rom))),
-        Some(CartridgeType::Mbc1Ram) => Rc::new(RefCell::new(Mbc1::new(rom))),
-        Some(CartridgeType::Mbc1RamBat) => Rc::new(RefCell::new(Mbc1::new(rom))),
-        Some(CartridgeType::Mbc3) => Rc::new(RefCell::new(Mbc3::new(rom))),
-        Some(CartridgeType::Mbc3Ram) => Rc::new(RefCell::new(Mbc3::new(rom))),
-        Some(CartridgeType::Mbc3RamBat) => Rc::new(RefCell::new(Mbc3::new(rom))),
-        Some(CartridgeType::Mbc3RtcRamBat) => Rc::new(RefCell::new(Mbc3::new(rom))),
-        Some(CartridgeType::Mbc5) => Rc::new(RefCell::new(Mbc5::new(rom))),
-        Some(CartridgeType::Mbc5Ram) => Rc::new(RefCell::new(Mbc5::new(rom))),
-        Some(CartridgeType::Mbc5RamBat) => Rc::new(RefCell::new(Mbc5::new(rom))),
+        Some(CartridgeType::Mbc1) => Rc::new(RefCell::new(Mbc1::new(rom, save))),
+        Some(CartridgeType::Mbc1Ram) => Rc::new(RefCell::new(Mbc1::new(rom, save))),
+        Some(CartridgeType::Mbc1RamBat) => Rc::new(RefCell::new(Mbc1::new(rom, save))),
+        Some(CartridgeType::Mbc3) => Rc::new(RefCell::new(Mbc3::new(rom, save))),
+        Some(CartridgeType::Mbc3Ram) => Rc::new(RefCell::new(Mbc3::new(rom, save))),
+        Some(CartridgeType::Mbc3RamBat) => Rc::new(RefCell::new(Mbc3::new(rom, save))),
+        Some(CartridgeType::Mbc3RtcRamBat) => Rc::new(RefCell::new(Mbc3::new(rom, save))),
+        Some(CartridgeType::Mbc5) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
+        Some(CartridgeType::Mbc5Ram) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
+        Some(CartridgeType::Mbc5RamBat) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
         Some(unknown) => panic!("Unknown cartridge type {:?}", unknown),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }

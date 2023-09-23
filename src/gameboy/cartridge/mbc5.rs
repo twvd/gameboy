@@ -18,7 +18,7 @@ pub struct Mbc5 {
 }
 
 impl Mbc5 {
-    pub fn new(rom: &[u8]) -> Self {
+    pub fn new(rom: &[u8], save: &[u8]) -> Self {
         let mut cart = Self {
             rom: vec![0; ROM_BANK_COUNT * ROM_BANK_SIZE],
             ram: vec![0; RAM_BANK_COUNT * RAM_BANK_SIZE],
@@ -27,6 +27,7 @@ impl Mbc5 {
             rom_banks: 0,
         };
         cart.rom[0..rom.len()].copy_from_slice(rom);
+        cart.ram[0..save.len()].copy_from_slice(save);
 
         // Keep this calculated in RAM because it gets looked up a lot.
         cart.rom_banks = cart.get_rom_banks();
@@ -55,6 +56,10 @@ impl Cartridge for Mbc5 {
             "ROM bank: {:02X} - RAM bank: {:02X}",
             self.rom_banksel, self.ram_banksel
         )
+    }
+
+    fn get_save(&self) -> Vec<u8> {
+        self.ram.to_owned()
     }
 }
 
@@ -109,7 +114,7 @@ mod tests {
         rom[CARTTYPE_OFFSET] = CartridgeType::Mbc5 as u8;
         rom[ROMSIZE_OFFSET] = 8; // 8 MB ROM
 
-        let mut c = Mbc5::new(&rom);
+        let mut c = Mbc5::new(&rom, &[]);
 
         // Bank 0
         for i in 0u16..(ROM_BANK_SIZE as u16) {
@@ -159,7 +164,7 @@ mod tests {
 
     #[test]
     fn ram_bank_switching() {
-        let mut c = Mbc5::new(&[]);
+        let mut c = Mbc5::new(&[], &[]);
 
         for b in 0u8..(RAM_BANK_COUNT as u8) {
             c.write(0x4000, b);

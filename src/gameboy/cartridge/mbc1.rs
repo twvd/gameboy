@@ -24,7 +24,7 @@ pub struct Mbc1 {
 }
 
 impl Mbc1 {
-    pub fn new(rom: &[u8]) -> Self {
+    pub fn new(rom: &[u8], save: &[u8]) -> Self {
         let mut cart = Self {
             rom: vec![0; ROM_BANK_COUNT * ROM_BANK_SIZE],
             ram: vec![0; RAM_BANK_COUNT * RAM_BANK_SIZE],
@@ -38,6 +38,7 @@ impl Mbc1 {
         cart.rom[0..rom.len()].copy_from_slice(rom);
         cart.rom_banks = cart.get_rom_banks();
         cart.ram_banks = cart.get_ram_banks();
+        cart.ram[0..save.len()].copy_from_slice(save);
         cart
     }
 
@@ -84,6 +85,10 @@ impl Cartridge for Mbc1 {
             self.bank2,
             if self.bank_advanced { 1 } else { 0 }
         )
+    }
+
+    fn get_save(&self) -> Vec<u8> {
+        self.ram.to_owned()
     }
 }
 
@@ -146,7 +151,7 @@ mod tests {
         rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1 as u8;
         rom[ROMSIZE_OFFSET] = 0x06; // 2MB ROM
 
-        let mut c = Mbc1::new(&rom);
+        let mut c = Mbc1::new(&rom, &[]);
 
         // Bank 0
         for i in 0u16..(ROM_BANK_SIZE as u16) {
@@ -212,7 +217,7 @@ mod tests {
         rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1 as u8;
         rom[ROMSIZE_OFFSET] = 0x06; // 2MB ROM
 
-        let mut c = Mbc1::new(&rom);
+        let mut c = Mbc1::new(&rom, &[]);
 
         // Select mode 1
         c.write(0x6000, 1);
@@ -270,7 +275,7 @@ mod tests {
         let mut rom: [u8; CARTHEADER_END] = [0; CARTHEADER_END];
         rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1Ram as u8;
         rom[RAMSIZE_OFFSET] = 0x03; // 32kb RAM
-        let mut c = Mbc1::new(&rom);
+        let mut c = Mbc1::new(&rom, &[]);
 
         c.write(0x0000, 0x0A); // RAM enable
         c.write(0x6000, 1); // Banking mode 1
@@ -300,7 +305,7 @@ mod tests {
         let mut rom: [u8; CARTHEADER_END] = [0; CARTHEADER_END];
         rom[CARTTYPE_OFFSET] = CartridgeType::Mbc1Ram as u8;
         rom[RAMSIZE_OFFSET] = 0x03; // 32kb RAM
-        let mut c = Mbc1::new(&rom);
+        let mut c = Mbc1::new(&rom, &[]);
 
         assert_eq!(c.read(0xA000), 0xFF);
         c.write(0xA000, 0xAB);

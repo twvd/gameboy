@@ -21,6 +21,10 @@ impl Cartridge for RomOnly {
     fn dump_state(&self) -> String {
         "".to_string()
     }
+
+    fn get_save(&self) -> Vec<u8> {
+        vec![]
+    }
 }
 
 impl BusMember for RomOnly {
