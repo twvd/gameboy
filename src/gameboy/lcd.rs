@@ -710,6 +710,7 @@ impl Tickable for LCDController {
             // PPU disabled, restart frame
             self.dots = Self::DOTS_INIT;
             self.ly = 0;
+            self.lcds = self.lcds & !LCDS_STATMODE_MASK;
             return Ok(ticks);
         }
 
