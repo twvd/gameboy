@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use super::input::{Button, Input};
 
-use std::io::Stdout;
 use strum::IntoEnumIterator;
-use terminal::{Action, Clear, Event, KeyCode, Retrieved, Terminal, Value};
+use terminal::{KeyCode, KeyEvent};
 
 pub struct TerminalInput {
-    terminal: Terminal<Stdout>,
+    receiver: mpsc::Receiver<KeyEvent>,
     press_time: RefCell<BTreeMap<Button, Instant>>,
 }
 
@@ -17,11 +17,9 @@ impl TerminalInput {
     /// Time an input remains asserted after a key press
     const KEYDOWN_TIME: u128 = 200;
 
-    pub fn new(terminal: Terminal<Stdout>) -> Self {
-        terminal.act(Action::EnableRawMode).unwrap();
-
+    pub fn new(receiver: mpsc::Receiver<KeyEvent>) -> Self {
         Self {
-            terminal,
+            receiver,
             press_time: RefCell::new(BTreeMap::from_iter(Button::iter().map(|e| {
                 (
                     e,
@@ -54,29 +52,9 @@ impl TerminalInput {
     }
 
     fn process_input(&self) {
-        if let Retrieved::Event(Some(Event::Key(keyevent))) = self
-            .terminal
-            .get(Value::Event(Some(Duration::from_millis(0))))
-            .unwrap()
-        {
-            match keyevent.code {
-                KeyCode::Esc => {
-                    // TODO make some nicer/more generic exitting code
-                    self.terminal.act(Action::DisableRawMode).unwrap();
-                    self.terminal.act(Action::ShowCursor).unwrap();
-                    self.terminal.act(Action::ResetColor).unwrap();
-                    self.terminal.act(Action::MoveCursorTo(0, 0)).unwrap();
-                    self.terminal
-                        .act(Action::ClearTerminal(Clear::All))
-                        .unwrap();
-
-                    std::process::exit(0)
-                }
-                _ => {
-                    if let Some(btn) = Self::map_key(keyevent.code) {
-                        self.kick_btn(btn);
-                    }
-                }
+        if let Ok(keyevent) = self.receiver.try_recv() {
+            if let Some(btn) = Self::map_key(keyevent.code) {
+                self.kick_btn(btn);
             }
         }
     }

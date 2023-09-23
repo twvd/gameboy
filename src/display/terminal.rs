@@ -1,3 +1,4 @@
+use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -6,7 +7,7 @@ use crate::input::terminal::TerminalInput;
 
 use anyhow::Result;
 use std::io::{Stdout, Write};
-use terminal::{Action, Clear, Color as TerminalColor, Terminal};
+use terminal::{Action, Clear, Color as TerminalColor, KeyEvent, Terminal};
 
 const PX_BOT: char = '▄';
 //const PX_TOP: char = '▀';
@@ -86,8 +87,8 @@ impl TerminalDisplay {
         }
     }
 
-    pub fn create_input(&self) -> TerminalInput {
-        TerminalInput::new(terminal::stdout())
+    pub fn create_input(&self, key_rx: mpsc::Receiver<KeyEvent>) -> TerminalInput {
+        TerminalInput::new(key_rx)
     }
 
     /// Map a color from our internal color type to a terminal color

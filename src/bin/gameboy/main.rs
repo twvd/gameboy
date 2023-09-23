@@ -1,8 +1,11 @@
 use std::fs;
 use std::io::{stdin, Read};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
+use terminal::{stdout, Action, Clear, Event, KeyCode, Retrieved, Value};
 
 const DISPLAY_W: usize = 160;
 const DISPLAY_H: usize = 144;
@@ -104,11 +107,15 @@ fn main() -> Result<()> {
         println!("Mode: Gameboy (DMG)");
     }
 
+    let terminal = stdout();
+    terminal.act(Action::EnableRawMode).unwrap();
+    let (key_tx, key_rx) = mpsc::channel();
+
     if !args.no_display {
         #[cfg(not(feature = "sixel"))]
         {
             let cdisplay = Box::new(TerminalDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
-            input = Box::new(cdisplay.create_input());
+            input = Box::new(cdisplay.create_input(key_rx));
             display = cdisplay as Box<dyn Display>;
         }
 
@@ -155,7 +162,25 @@ fn main() -> Result<()> {
 
     let mut cpu = CPU::new(bus, cgb);
 
-    loop {
+    'mainloop: loop {
+        if let Retrieved::Event(Some(Event::Key(keyevent))) = terminal
+            .get(Value::Event(Some(Duration::from_millis(0))))
+            .unwrap()
+        {
+            match keyevent.code {
+                KeyCode::Esc => {
+                    terminal.act(Action::DisableRawMode).unwrap();
+                    terminal.act(Action::ShowCursor).unwrap();
+                    terminal.act(Action::ResetColor).unwrap();
+                    terminal.act(Action::MoveCursorTo(0, 0)).unwrap();
+                    terminal.act(Action::ClearTerminal(Clear::All)).unwrap();
+
+                    break 'mainloop;
+                }
+                _ => key_tx.send(keyevent)?,
+            }
+        }
+
         if args.verbose {
             eprintln!("{}", cpu.dump_state());
         }
@@ -166,4 +191,6 @@ fn main() -> Result<()> {
 
         cpu.tick(1)?;
     }
+
+    Ok(())
 }
