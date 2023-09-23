@@ -684,12 +684,12 @@ impl LCDController {
     }
 
     /// Tests STAT interrupt conditions, returns if an interrupt should fire.
-    fn check_stat_int(&mut self) -> bool {
+    fn check_stat_int(&mut self, lcds: u8) -> bool {
         let mode = self.get_stat_mode();
-        let new_line = (self.lcds & LCDS_INT_STAT_VBLANK != 0 && mode == LCDStatMode::VBlank)
-            || (self.lcds & LCDS_INT_STAT_OAM != 0 && mode == LCDStatMode::Search)
-            || (self.lcds & LCDS_INT_STAT_HBLANK != 0 && mode == LCDStatMode::HBlank)
-            || (self.lcds & LCDS_INT_LYC != 0 && self.lcds & LCDS_LYC != 0);
+        let new_line = (lcds & LCDS_INT_STAT_VBLANK != 0 && mode == LCDStatMode::VBlank)
+            || (lcds & LCDS_INT_STAT_OAM != 0 && mode == LCDStatMode::Search)
+            || (lcds & LCDS_INT_STAT_HBLANK != 0 && mode == LCDStatMode::HBlank)
+            || (lcds & LCDS_INT_LYC != 0 && self.ly == self.lyc);
 
         // STAT interrupt blocking
         // If the current interrupt line is high, a new interrupt condition
@@ -759,7 +759,7 @@ impl Tickable for LCDController {
         }
 
         // Check STAT interrupt
-        if self.check_stat_int() {
+        if self.check_stat_int(self.lcds) {
             self.intreq_stat = true;
         }
 
@@ -857,7 +857,18 @@ impl BusMember for LCDController {
             0xFF40 => self.lcdc = val,
 
             // LCDS - LCD status register
-            0xFF41 => self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK),
+            0xFF41 => {
+                // DMG hardware has a quirk where the PPU reads LCDS as 0xFF
+                // for one cycle when LCDS is written.
+                // This can trigger a STAT interrupt if any of the interrupt
+                // source conditions is currently true, unless STAT blocking occurs.
+                if !self.cgb && self.check_stat_int(0xFF) {
+                    self.stat_int_line = true;
+                    self.intreq_stat = true;
+                }
+
+                self.lcds = (self.lcds & !LCDS_MASK) | (val & LCDS_MASK);
+            }
 
             // SCY - Background scrolling viewport Y
             0xFF42 => self.scy = val,
@@ -966,6 +977,7 @@ mod tests {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write(0xFF45, 10);
         c.write(0xFF41, LCDS_INT_LYC);
+        c.get_clr_intreq_stat(); // Clear STAT write glitch
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -987,6 +999,7 @@ mod tests {
     fn int_stat_vblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write(0xFF41, LCDS_INT_STAT_VBLANK);
+        c.get_clr_intreq_stat(); // Clear STAT write glitch
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -1005,6 +1018,7 @@ mod tests {
     fn int_stat_hblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
         c.write(0xFF41, LCDS_INT_STAT_HBLANK);
+        c.get_clr_intreq_stat(); // Clear STAT write glitch
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -1028,6 +1042,7 @@ mod tests {
         }
 
         c.write(0xFF41, LCDS_INT_STAT_OAM);
+        c.get_clr_intreq_stat(); // Clear STAT write glitch
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
@@ -1040,6 +1055,47 @@ mod tests {
 
         c.tick(1).unwrap();
         assert!(!c.get_clr_intreq_stat());
+    }
+
+    #[test]
+    fn int_stat_quirk() {
+        let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
+
+        assert_eq!(c.get_stat_mode(), LCDStatMode::Search);
+
+        c.write(0xFF45, 1); // LYC
+        assert!(!c.get_clr_intreq_stat());
+        c.write(0xFF41, 0);
+        // Triggered by LY = 0, OAM
+        assert!(c.get_clr_intreq_stat());
+
+        while c.get_stat_mode() != LCDStatMode::Transfer {
+            c.tick(1).unwrap();
+        }
+        // NOT triggered by LY = 0, transfer
+        c.write(0xFF41, 0);
+        assert!(!c.get_clr_intreq_stat());
+
+        while c.get_stat_mode() != LCDStatMode::HBlank {
+            c.tick(1).unwrap();
+        }
+        // Triggered by LY = 0, HBlank
+        c.write(0xFF41, 0);
+        assert!(c.get_clr_intreq_stat());
+
+        while c.get_stat_mode() != LCDStatMode::Transfer {
+            c.tick(1).unwrap();
+        }
+        // Triggered by LY = 1, LY=LYC
+        c.write(0xFF41, 0);
+        assert!(c.get_clr_intreq_stat());
+
+        while c.get_stat_mode() != LCDStatMode::VBlank {
+            c.tick(1).unwrap();
+        }
+        // Triggered by VBlank
+        c.write(0xFF41, 0);
+        assert!(c.get_clr_intreq_stat());
     }
 
     #[test]
