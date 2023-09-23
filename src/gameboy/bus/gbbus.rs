@@ -10,10 +10,12 @@ use crate::tickable::{Tickable, ONE_MCYCLE};
 
 use anyhow::Result;
 
+use std::cell::RefCell;
 use std::cmp;
 use std::fmt;
 use std::io;
 use std::io::Write;
+use std::rc::Rc;
 use std::sync::mpsc;
 
 #[allow(dead_code)]
@@ -31,7 +33,7 @@ const VRAMDMA_BLOCK_SIZE: usize = 0x10;
 pub struct Gameboybus {
     cgb: bool,
 
-    cart: Box<dyn Cartridge>,
+    cart: Rc<RefCell<dyn Cartridge>>,
     boot_rom: [u8; BOOTROM_SIZE_CGB],
 
     boot_rom_enabled: bool,
@@ -90,7 +92,7 @@ impl Gameboybus {
     const WRAM_BANKS: usize = 8;
 
     pub fn new(
-        cart: Box<dyn Cartridge>,
+        cart: Rc<RefCell<dyn Cartridge>>,
         bootrom: Option<&[u8]>,
         lcd: LCDController,
         input: Box<dyn Input>,
@@ -274,13 +276,13 @@ impl BusMember for Gameboybus {
             0x0200..=0x08FF if self.boot_rom_enabled && self.cgb => self.boot_rom[addr],
 
             // Cartridge ROM
-            0x0000..=0x7FFF => self.cart.read(addr as u16),
+            0x0000..=0x7FFF => self.cart.borrow().read(addr as u16),
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.read(addr as u16),
 
             // External (cartridge) RAM
-            0xA000..=0xBFFF => self.cart.read(addr as u16),
+            0xA000..=0xBFFF => self.cart.borrow().read(addr as u16),
 
             // Working RAM (bank 0)
             0xC000..=0xCFFF => self.wram[addr - 0xC000],
@@ -382,13 +384,13 @@ impl BusMember for Gameboybus {
 
         match addr {
             // Cartridge ROM
-            0x0000..=0x7FFF => self.cart.write(addr as u16, val),
+            0x0000..=0x7FFF => self.cart.borrow_mut().write(addr as u16, val),
 
             // Video RAM
             0x8000..=0x9FFF => self.lcd.write(addr as u16, val),
 
             // External (cartridge) RAM
-            0xA000..=0xBFFF => self.cart.write(addr as u16, val),
+            0xA000..=0xBFFF => self.cart.borrow_mut().write(addr as u16, val),
 
             // Working RAM (bank 0)
             0xC000..=0xCFFF => self.wram[addr - 0xC000] = val,
@@ -517,7 +519,7 @@ impl Tickable for Gameboybus {
 
 impl fmt::Display for Gameboybus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.cart.dump_state())
+        write!(f, "{}", self.cart.borrow().dump_state())
     }
 }
 

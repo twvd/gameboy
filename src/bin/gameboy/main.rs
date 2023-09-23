@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{stdin, Read};
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -93,10 +94,10 @@ fn main() -> Result<()> {
     let input: Box<dyn Input>;
 
     let cartridge = cartridge::load(&rom);
-    println!("Cartridge: {}", cartridge);
+    println!("Cartridge: {}", cartridge.borrow());
 
     let cgb = match args.mode {
-        EmulationMode::Auto => cartridge.is_cgb(),
+        EmulationMode::Auto => cartridge.borrow().is_cgb(),
         EmulationMode::DMG => false,
         EmulationMode::Color => true,
     };
@@ -137,14 +138,20 @@ fn main() -> Result<()> {
         let mut b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
             Box::new(Gameboybus::new(
-                cartridge,
+                Rc::clone(&cartridge),
                 Some(bootrom.as_slice()),
                 lcd,
                 input,
                 cgb,
             ))
         } else {
-            Box::new(Gameboybus::new(cartridge, None, lcd, input, cgb))
+            Box::new(Gameboybus::new(
+                Rc::clone(&cartridge),
+                None,
+                lcd,
+                input,
+                cgb,
+            ))
         };
         if args.serial_out {
             b.enable_serial_output();
