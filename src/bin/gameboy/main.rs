@@ -1,5 +1,6 @@
 use std::fs;
 use std::fs::File;
+use std::io;
 use std::io::{stdin, Read, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -141,28 +142,34 @@ fn main() -> Result<()> {
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
-        let mut b = if let Some(ref brfile) = args.bootrom {
+        let serial_out: Box<dyn Write> = if args.serial_out {
+            Box::new(stdout())
+        } else {
+            Box::new(io::sink())
+        };
+
+        let b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
-            Box::new(Gameboybus::new(
+            Box::new(Gameboybus::new_with_serial(
                 Rc::clone(&cartridge),
                 Some(bootrom.as_slice()),
                 lcd,
                 input,
                 cgb,
+                Box::new(io::empty()),
+                serial_out,
             ))
         } else {
-            Box::new(Gameboybus::new(
+            Box::new(Gameboybus::new_with_serial(
                 Rc::clone(&cartridge),
                 None,
                 lcd,
                 input,
                 cgb,
+                Box::new(io::empty()),
+                serial_out,
             ))
         };
-        if args.serial_out {
-            b.enable_serial_output();
-        }
-
         b
     };
 

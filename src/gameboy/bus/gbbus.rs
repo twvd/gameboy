@@ -16,7 +16,6 @@ use std::fmt;
 use std::io;
 use std::io::Write;
 use std::rc::Rc;
-use std::sync::mpsc;
 
 #[allow(dead_code)]
 const BOOTROM_SIZE_DMG: usize = 0x100;
@@ -53,12 +52,6 @@ pub struct Gameboybus {
     /// Serial data buffer
     serialbuffer: u8,
 
-    /// Output serial data to terminal
-    serial_output: bool,
-
-    /// Serial output channel (for tests)
-    serial_channel: Option<mpsc::Sender<u8>>,
-
     /// CGB - WRAM bank select
     wram_banksel: u8,
 
@@ -85,6 +78,12 @@ pub struct Gameboybus {
 
     /// OAM DMA Transfer source address
     oamdma_addr: u16,
+
+    /// Serial input stream
+    serial_in: Box<dyn io::Read>,
+
+    /// Serial output stream
+    serial_out: Box<dyn io::Write>,
 }
 
 impl Gameboybus {
@@ -97,6 +96,26 @@ impl Gameboybus {
         lcd: LCDController,
         input: Box<dyn Input>,
         cgb: bool,
+    ) -> Self {
+        Self::new_with_serial(
+            cart,
+            bootrom,
+            lcd,
+            input,
+            cgb,
+            Box::new(io::empty()),
+            Box::new(io::sink()),
+        )
+    }
+
+    pub fn new_with_serial(
+        cart: Rc<RefCell<dyn Cartridge>>,
+        bootrom: Option<&[u8]>,
+        lcd: LCDController,
+        input: Box<dyn Input>,
+        cgb: bool,
+        serial_in: Box<dyn io::Read>,
+        serial_out: Box<dyn io::Write>,
     ) -> Self {
         let mut bus = Gameboybus {
             cgb,
@@ -116,8 +135,8 @@ impl Gameboybus {
 
             intflags: cpu::INT_VBLANK, // VBlank is set after boot ROM
             serialbuffer: 0,
-            serial_output: false,
-            serial_channel: None,
+            serial_in,
+            serial_out,
 
             vramdma_src: 0,
             vramdma_dest: 0,
@@ -134,14 +153,6 @@ impl Gameboybus {
         }
 
         bus
-    }
-
-    pub fn enable_serial_output(&mut self) {
-        self.serial_output = true;
-    }
-
-    pub fn enable_serial_channel(&mut self, tx: mpsc::Sender<u8>) {
-        self.serial_channel = Some(tx);
     }
 
     fn update_intflags(&mut self) {
@@ -420,12 +431,8 @@ impl BusMember for Gameboybus {
 
             // I/O - Serial transfer control
             0xFF02 => {
-                if val == 0x81 && self.serial_output {
-                    print!("{}", self.serialbuffer as char);
-                    io::stdout().flush().unwrap_or_default();
-                }
-                if let Some(ref mut tx) = &mut self.serial_channel {
-                    tx.send(self.serialbuffer).unwrap_or_default();
+                if val == 0x81 {
+                    self.serial_out.write(&[self.serialbuffer]).unwrap();
                 }
             }
 

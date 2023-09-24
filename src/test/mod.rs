@@ -10,6 +10,7 @@ use crate::gameboy::cartridge::cartridge;
 use crate::gameboy::cpu::cpu::CPU;
 use crate::gameboy::lcd::{LCDController, LCD_H, LCD_W};
 use crate::input::input::NullInput;
+use crate::misc::WritableSender;
 use crate::tickable::Tickable;
 
 use itertools::Itertools;
@@ -23,10 +24,16 @@ fn test_serial(rom: &[u8], pass_text: &[u8], fail_text: &[u8], time_limit: u128)
     let input = Box::new(NullInput::new());
     let lcd = LCDController::new(display, false);
 
-    let mut bus = Box::new(Gameboybus::new(cart, None, lcd, input, false));
     let (tx, rx) = mpsc::channel::<u8>();
-    bus.enable_serial_output();
-    bus.enable_serial_channel(tx);
+    let bus = Box::new(Gameboybus::new_with_serial(
+        cart,
+        None,
+        lcd,
+        input,
+        false,
+        Box::new(std::io::empty()),
+        Box::new(WritableSender::new(tx)),
+    ));
 
     let mut cpu = CPU::new(bus, false);
 
