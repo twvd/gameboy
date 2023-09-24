@@ -11,6 +11,7 @@ pub struct APU {
     apu_enable: bool,
     dac_enable: u8,
     len_timers: [u8; APU_CHANNELS],
+    nr50: u8,
 }
 
 impl APU {
@@ -19,6 +20,7 @@ impl APU {
             apu_enable: false,
             dac_enable: 0,
             len_timers: [0; APU_CHANNELS],
+            nr50: 0,
         }
     }
 }
@@ -36,6 +38,9 @@ impl BusMember for APU {
                     0x00
                 }
             }
+
+            // NR50: Master volume & VIN panning
+            0xFF24 => self.nr50,
 
             // NR52: Sound on/off
             0xFF26 => {
@@ -89,6 +94,9 @@ impl BusMember for APU {
                     self.dac_enable &= !(1 << 2);
                 }
             }
+
+            // NR50: Master volume & VIN panning
+            0xFF24 => self.nr50 = val,
 
             // Wave form RAM
             0xFF30..=0xFF3F => (),
