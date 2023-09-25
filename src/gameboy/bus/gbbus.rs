@@ -3,6 +3,7 @@ use super::super::cartridge::cartridge::Cartridge;
 use super::super::cpu::cpu;
 use super::super::joypad::Joypad;
 use super::super::lcd::{LCDController, LCDStatMode};
+use super::super::serial::Serial;
 use super::super::timer::Timer;
 use super::bus::{Bus, BusMember};
 use crate::input::input::Input;
@@ -14,7 +15,6 @@ use std::cell::RefCell;
 use std::cmp;
 use std::fmt;
 use std::io;
-use std::io::Write;
 use std::rc::Rc;
 
 #[allow(dead_code)]
@@ -49,9 +49,6 @@ pub struct Gameboybus {
     /// IF register
     intflags: u8,
 
-    /// Serial data buffer
-    serialbuffer: u8,
-
     /// CGB - WRAM bank select
     wram_banksel: u8,
 
@@ -79,11 +76,8 @@ pub struct Gameboybus {
     /// OAM DMA Transfer source address
     oamdma_addr: u16,
 
-    /// Serial input stream
-    serial_in: Box<dyn io::Read>,
-
-    /// Serial output stream
-    serial_out: Box<dyn io::Write>,
+    /// Serial port controller
+    serial: Serial,
 }
 
 impl Gameboybus {
@@ -134,9 +128,7 @@ impl Gameboybus {
             apu: APU::new(),
 
             intflags: cpu::INT_VBLANK, // VBlank is set after boot ROM
-            serialbuffer: 0,
-            serial_in,
-            serial_out,
+            serial: Serial::new(serial_in, serial_out),
 
             vramdma_src: 0,
             vramdma_dest: 0,
@@ -318,11 +310,8 @@ impl BusMember for Gameboybus {
             // I/O - Joypad
             0xFF00 => self.joypad.read(),
 
-            // I/O - Serial transfer data buffer
-            0xFF01 => self.serialbuffer,
-
-            // I/O - Serial transfer control
-            0xFF02 => 0x7E,
+            // I/O - Serial transfer
+            0xFF01..=0xFF02 => self.serial.read(addr as u16),
 
             // I/O - Timer
             0xFF04..=0xFF07 => self.timer.read(addr as u16),
@@ -426,15 +415,8 @@ impl BusMember for Gameboybus {
             // I/O - Joypad
             0xFF00 => self.joypad.write(val),
 
-            // I/O - Serial transfer data buffer
-            0xFF01 => self.serialbuffer = val,
-
-            // I/O - Serial transfer control
-            0xFF02 => {
-                if val == 0x81 {
-                    self.serial_out.write(&[self.serialbuffer]).unwrap();
-                }
-            }
+            // I/O - Serial transfer
+            0xFF01..=0xFF02 => self.serial.write(addr as u16, val),
 
             // Timer
             0xFF04..=0xFF07 => self.timer.write(addr as u16, val),
