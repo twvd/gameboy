@@ -47,6 +47,11 @@ struct Args {
     /// ROM filename to load.
     filename: String,
 
+    /// Override the filename of the save.
+    /// By default, this is the ROM filename with the .sav extension.
+    #[arg(long)]
+    save_filename: Option<String>,
+
     /// Boot ROM to optionally load
     #[arg(short, long)]
     bootrom: Option<String>,
@@ -91,8 +96,11 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let mut savefn = PathBuf::from(&args.filename);
-    savefn.set_extension("sav");
+    let savefn = args.save_filename.unwrap_or_else(|| {
+        let mut p = PathBuf::from(&args.filename);
+        p.set_extension("sav");
+        p.into_os_string().into_string().unwrap()
+    });
 
     let rom = fs::read(&args.filename)?;
     let sav = fs::read(&savefn).unwrap_or(vec![]);
