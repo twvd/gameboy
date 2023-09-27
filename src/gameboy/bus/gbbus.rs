@@ -14,7 +14,6 @@ use anyhow::Result;
 use std::cell::RefCell;
 use std::cmp;
 use std::fmt;
-use std::io;
 use std::rc::Rc;
 
 #[allow(dead_code)]
@@ -91,15 +90,7 @@ impl Gameboybus {
         input: Box<dyn Input>,
         cgb: bool,
     ) -> Self {
-        Self::new_with_serial(
-            cart,
-            bootrom,
-            lcd,
-            input,
-            cgb,
-            Box::new(io::empty()),
-            Box::new(io::sink()),
-        )
+        Self::new_with_serial(cart, bootrom, lcd, input, cgb, Serial::new_null())
     }
 
     pub fn new_with_serial(
@@ -108,8 +99,7 @@ impl Gameboybus {
         lcd: LCDController,
         input: Box<dyn Input>,
         cgb: bool,
-        serial_in: Box<dyn io::Read>,
-        serial_out: Box<dyn io::Write>,
+        serial: Serial,
     ) -> Self {
         let mut bus = Gameboybus {
             cgb,
@@ -128,7 +118,7 @@ impl Gameboybus {
             apu: APU::new(),
 
             intflags: cpu::INT_VBLANK, // VBlank is set after boot ROM
-            serial: Serial::new(serial_in, serial_out),
+            serial,
 
             vramdma_src: 0,
             vramdma_dest: 0,
@@ -156,6 +146,9 @@ impl Gameboybus {
         }
         if self.timer.get_clr_intreq() {
             self.intflags |= cpu::INT_TIMER;
+        }
+        if self.serial.get_clr_intreq() {
+            self.intflags |= cpu::INT_SERIAL;
         }
     }
 
@@ -487,8 +480,11 @@ impl BusMember for Gameboybus {
 impl Tickable for Gameboybus {
     fn tick(&mut self, ticks: usize) -> Result<usize> {
         self.oamdma_tick(ticks);
+
+        // Tick sub-peripherals
         self.lcd.tick(ticks)?;
         self.timer.tick(ticks)?;
+        self.serial.tick(ticks)?;
 
         self.update_intflags();
 

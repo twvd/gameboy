@@ -1,7 +1,7 @@
 use std::fs;
 use std::fs::File;
-use std::io;
 use std::io::{stdin, Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -27,6 +27,7 @@ use gbrust::gameboy::bus::testbus::Testbus;
 use gbrust::gameboy::cartridge::cartridge;
 use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::lcd::LCDController;
+use gbrust::gameboy::serial::Serial;
 use gbrust::input::input::{Input, NullInput};
 use gbrust::tickable::Tickable;
 
@@ -91,6 +92,14 @@ struct Args {
         value_enum
     )]
     mode: EmulationMode,
+
+    /// Enable link cable master (TCP server)
+    #[arg(short('L'))]
+    link_master: bool,
+
+    /// Enable link cable slave (TCP client)
+    #[arg(short('l'))]
+    link_slave: bool,
 }
 
 fn main() -> Result<()> {
@@ -123,6 +132,29 @@ fn main() -> Result<()> {
         println!("Mode: Gameboy (DMG)");
     }
 
+    let mut serial = if args.serial_out {
+        Serial::new_out(Box::new(stdout()))
+    } else {
+        Serial::new_null()
+    };
+
+    if args.link_master {
+        let listener = TcpListener::bind("127.0.0.1:4567").unwrap();
+        println!("Link cable in master (server) mode");
+        println!("Waiting for connection...");
+        let stream = listener.incoming().next().unwrap()?;
+        stream.set_nonblocking(true)?;
+        println!("Connection established!");
+        serial = Serial::new(Box::new(stream.try_clone()?), Box::new(stream));
+    } else if args.link_slave {
+        println!("Link cable in slave (client) mode");
+        println!("Connecting...");
+        let stream = TcpStream::connect("127.0.0.1:4567")?;
+        stream.set_nonblocking(true)?;
+        println!("Connection established!");
+        serial = Serial::new(Box::new(stream.try_clone()?), Box::new(stream));
+    }
+
     let terminal = stdout();
     terminal.act(Action::EnableRawMode).unwrap();
     let (key_tx, key_rx) = mpsc::channel();
@@ -150,12 +182,6 @@ fn main() -> Result<()> {
     let mut bus: Box<dyn Bus> = if args.testbus {
         Box::new(Testbus::new())
     } else {
-        let serial_out: Box<dyn Write> = if args.serial_out {
-            Box::new(stdout())
-        } else {
-            Box::new(io::sink())
-        };
-
         let b = if let Some(ref brfile) = args.bootrom {
             let bootrom = fs::read(brfile)?;
             Box::new(Gameboybus::new_with_serial(
@@ -164,8 +190,7 @@ fn main() -> Result<()> {
                 lcd,
                 input,
                 cgb,
-                Box::new(io::empty()),
-                serial_out,
+                serial,
             ))
         } else {
             Box::new(Gameboybus::new_with_serial(
@@ -174,8 +199,7 @@ fn main() -> Result<()> {
                 lcd,
                 input,
                 cgb,
-                Box::new(io::empty()),
-                serial_out,
+                serial,
             ))
         };
         b
