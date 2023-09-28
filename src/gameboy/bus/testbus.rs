@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::bus::{Bus, BusMember};
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, Ticks};
 
 use std::cell::RefCell;
 use std::fmt;
@@ -83,9 +83,9 @@ impl BusMember for Testbus {
 }
 
 impl Tickable for Testbus {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
-        self.cycles += ticks;
-        Ok(ticks)
+    fn tick(&mut self, ticks: Ticks) -> Result<()> {
+        self.cycles += ticks.get_t_ds();
+        Ok(())
     }
 }
 

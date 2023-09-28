@@ -1,5 +1,5 @@
 use crate::gameboy::bus::bus::BusMember;
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, Ticks};
 
 use anyhow::Result;
 
@@ -107,7 +107,10 @@ impl BusMember for APU {
 }
 
 impl Tickable for APU {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
+    fn tick(&mut self, ticks: Ticks) -> Result<()> {
+        // APU is not affected by double speed
+        let ticks = ticks.get_t_no_ds();
+
         let t = if ticks > u8::MAX.into() {
             u8::MAX
         } else {
@@ -122,6 +125,6 @@ impl Tickable for APU {
             }
         }
 
-        Ok(ticks)
+        Ok(())
     }
 }

@@ -5,7 +5,7 @@ use super::super::bus::bus::{Bus, BusIterator, BusMember};
 use super::alu;
 use super::instruction::{Instruction, Operand};
 use super::regs::{Flag, Register, RegisterFile, RegisterWidth};
-use crate::tickable::{Tickable, ONE_MCYCLE};
+use crate::tickable::{Ticks, ONE_MCYCLE};
 
 /// CPU clock frequency (in Hz)
 pub const CPU_CLOCK_HZ: usize = 4194304;
@@ -1449,24 +1449,19 @@ impl CPU {
     }
 
     /// Tick peripherals
-    fn tick_bus(&mut self, ticks: usize) -> Result<usize> {
-        if ticks == 0 {
-            return Ok(ticks);
+    fn tick_bus(&mut self, cycles: usize) -> Result<()> {
+        if cycles == 0 {
+            return Ok(());
         }
 
-        let cycles = ticks;
-        if self.cgb && self.key1 & KEY1_DOUBLE_SPEED == KEY1_DOUBLE_SPEED {
-            // TODO double speed
+        let bus_ticks = Ticks::from_t_xs(cycles, self.cgb && self.key1 & KEY1_DOUBLE_SPEED != 0);
+        // TODO DIV should reset to 0 after speed switch
 
-            // TODO timer/DIV should actually also cycle at double speed
-            // TODO DIV should reset to 0
-        }
-
-        self.bus.tick(cycles)
+        self.bus.tick(bus_ticks)
     }
 
     /// Tick peripherals for 1 M-cycle
-    fn tick_bus_mcycle(&mut self) -> Result<usize> {
+    fn tick_bus_mcycle(&mut self) -> Result<()> {
         self.mem_cycles += ONE_MCYCLE;
         self.tick_bus(ONE_MCYCLE)
     }
@@ -1489,14 +1484,6 @@ impl CPU {
         self.tick_bus_mcycle().unwrap();
 
         l as u16 | (h as u16) << 8
-    }
-}
-
-impl Tickable for CPU {
-    fn tick(&mut self, _ticks: usize) -> Result<usize> {
-        let cycles = self.step()?;
-
-        Ok(cycles)
     }
 }
 

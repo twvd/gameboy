@@ -3,7 +3,7 @@ use std::io;
 use std::io::Write;
 
 use crate::gameboy::bus::bus::BusMember;
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, Ticks};
 
 /// Serial (link cable) controller
 pub struct Serial {
@@ -99,7 +99,7 @@ impl BusMember for Serial {
 }
 
 impl Tickable for Serial {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
+    fn tick(&mut self, _ticks: Ticks) -> Result<()> {
         if let Some(ref mut si) = &mut self.serial_in {
             let mut buf = [0; 1];
             match si.read_exact(&mut buf) {
@@ -115,6 +115,6 @@ impl Tickable for Serial {
             }
         }
 
-        Ok(ticks)
+        Ok(())
     }
 }

@@ -29,7 +29,6 @@ use gbrust::gameboy::cpu::cpu::CPU;
 use gbrust::gameboy::lcd::LCDController;
 use gbrust::gameboy::serial::Serial;
 use gbrust::input::input::{Input, NullInput};
-use gbrust::tickable::Tickable;
 
 /// Emulation mode/Gameboy model to emulate
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
@@ -241,7 +240,7 @@ fn main() -> Result<()> {
             let _ = stdin().read(&mut [0u8]).unwrap();
         }
 
-        cpu.tick(1)?;
+        cpu.step()?;
     }
 
     let mut save = File::create(savefn)?;

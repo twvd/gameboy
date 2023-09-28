@@ -1,7 +1,7 @@
 use crate::display::display::Display;
 use crate::gameboy::bus::bus::BusMember;
 use crate::gameboy::lcd_oam::{OAMTable, ObjPriMode};
-use crate::tickable::Tickable;
+use crate::tickable::{Tickable, Ticks};
 
 use anyhow::Result;
 use num_derive::ToPrimitive;
@@ -705,13 +705,16 @@ impl LCDController {
 }
 
 impl Tickable for LCDController {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
+    fn tick(&mut self, ticks: Ticks) -> Result<()> {
+        // LCD controller is not affected by double speed
+        let ticks = ticks.get_t_no_ds();
+
         if self.lcdc & LCDC_ENABLE == 0 {
             // PPU disabled, restart frame
             self.dots = Self::DOTS_INIT;
             self.ly = 0;
             self.lcds = self.lcds & !LCDS_STATMODE_MASK;
-            return Ok(ticks);
+            return Ok(());
         }
 
         let old_mode = self.get_stat_mode();
@@ -773,7 +776,7 @@ impl Tickable for LCDController {
             self.redraw_pending = true;
         }
 
-        Ok(ticks)
+        Ok(())
     }
 }
 
@@ -943,7 +946,7 @@ mod tests {
         fn next(l: &mut LCDController) {
             let val = l.get_stat_mode();
             while l.get_stat_mode() == val {
-                l.tick(1).unwrap();
+                l.tick(Ticks::from_t(1)).unwrap();
             }
         }
 
@@ -968,7 +971,7 @@ mod tests {
             (LCDController::DOTS_INIT as usize)..(LCD_H * LCDController::DOTS_PER_LINE as usize)
         {
             assert!(!c.in_vblank());
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.in_vblank());
     }
@@ -980,18 +983,18 @@ mod tests {
         c.write(0xFF41, LCDS_INT_LYC);
         c.get_clr_intreq_stat(); // Clear STAT write glitch
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
         assert!(c.read(0xFF41) & LCDS_LYC != LCDS_LYC);
 
         while c.ly != 10 {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.read(0xFF41) & LCDS_LYC == LCDS_LYC);
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(c.read(0xFF41) & LCDS_LYC == LCDS_LYC);
         assert!(!c.get_clr_intreq_stat());
     }
@@ -1002,16 +1005,16 @@ mod tests {
         c.write(0xFF41, LCDS_INT_STAT_VBLANK);
         c.get_clr_intreq_stat(); // Clear STAT write glitch
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
 
         while !c.in_vblank() {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
     }
 
@@ -1021,16 +1024,16 @@ mod tests {
         c.write(0xFF41, LCDS_INT_STAT_HBLANK);
         c.get_clr_intreq_stat(); // Clear STAT write glitch
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::HBlank {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
     }
 
@@ -1039,22 +1042,22 @@ mod tests {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
         while c.get_stat_mode() == LCDStatMode::Search {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
 
         c.write(0xFF41, LCDS_INT_STAT_OAM);
         c.get_clr_intreq_stat(); // Clear STAT write glitch
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::Search {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.get_clr_intreq_stat());
         assert!(!c.get_clr_intreq_stat());
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_stat());
     }
 
@@ -1071,28 +1074,28 @@ mod tests {
         assert!(c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::Transfer {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         // NOT triggered by LY = 0, transfer
         c.write(0xFF41, 0);
         assert!(!c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::HBlank {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         // Triggered by LY = 0, HBlank
         c.write(0xFF41, 0);
         assert!(c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::Transfer {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         // Triggered by LY = 1, LY=LYC
         c.write(0xFF41, 0);
         assert!(c.get_clr_intreq_stat());
 
         while c.get_stat_mode() != LCDStatMode::VBlank {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         // Triggered by VBlank
         c.write(0xFF41, 0);
@@ -1103,16 +1106,16 @@ mod tests {
     fn int_vblank() {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_vblank());
 
         while !c.in_vblank() {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.get_clr_intreq_vblank());
         assert!(!c.get_clr_intreq_vblank());
 
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_vblank());
     }
 
@@ -1121,21 +1124,21 @@ mod tests {
         let mut c = LCDController::new(Box::new(NullDisplay::new()), false);
 
         c.write(0xFF40, LCDC_ENABLE);
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_vblank());
 
         for _ in 0..(LCDController::DOTS_PER_LINE * LCDController::SCANLINES) {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(c.get_clr_intreq_vblank());
         assert!(!c.get_clr_intreq_vblank());
 
         c.write(0xFF40, 0);
-        c.tick(1).unwrap();
+        c.tick(Ticks::from_t(1)).unwrap();
         assert!(!c.get_clr_intreq_vblank());
 
         for _ in 0..(LCDController::DOTS_PER_LINE * LCDController::SCANLINES) {
-            c.tick(1).unwrap();
+            c.tick(Ticks::from_t(1)).unwrap();
         }
         assert!(!c.get_clr_intreq_vblank());
     }

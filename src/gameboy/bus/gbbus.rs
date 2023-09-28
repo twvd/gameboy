@@ -7,7 +7,7 @@ use super::super::serial::Serial;
 use super::super::timer::Timer;
 use super::bus::{Bus, BusMember};
 use crate::input::input::Input;
-use crate::tickable::{Tickable, ONE_MCYCLE};
+use crate::tickable::{Tickable, Ticks, ONE_MCYCLE};
 
 use anyhow::Result;
 
@@ -212,7 +212,10 @@ impl Gameboybus {
         }
     }
 
-    fn oamdma_tick(&mut self, ticks: usize) {
+    fn oamdma_tick(&mut self, ticks: Ticks) {
+        // OAM DMA can run on double speed
+        let ticks = ticks.get_t_ds();
+
         let start_ticks = self.oamdma_start;
         if self.oamdma_start > 0 {
             // Transfer starting soon, in 'start delay' cycles
@@ -478,7 +481,7 @@ impl BusMember for Gameboybus {
 }
 
 impl Tickable for Gameboybus {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
+    fn tick(&mut self, ticks: Ticks) -> Result<()> {
         self.oamdma_tick(ticks);
 
         // Tick sub-peripherals
@@ -498,7 +501,7 @@ impl Tickable for Gameboybus {
             self.vramdma_hb_seen = false;
         }
 
-        Ok(ticks)
+        Ok(())
     }
 }
 
@@ -846,7 +849,7 @@ mod tests {
 
             let lcd_to_stat_mode = |b: &mut Gameboybus, mode: LCDStatMode| {
                 while b.read(0xFF41) & 0x03 != mode.to_u8().unwrap() {
-                    b.tick(1).unwrap();
+                    b.tick(Ticks::from_t(1)).unwrap();
                 }
             };
 
@@ -924,7 +927,7 @@ mod tests {
 
             let lcd_to_stat_mode = |b: &mut Gameboybus, mode: LCDStatMode| {
                 while b.read(0xFF41) & 0x03 != mode.to_u8().unwrap() {
-                    b.tick(1).unwrap();
+                    b.tick(Ticks::from_t(1)).unwrap();
                 }
             };
 

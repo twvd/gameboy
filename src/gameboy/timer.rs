@@ -1,6 +1,6 @@
 use super::cpu::cpu::CPU_CLOCK_HZ;
 use crate::gameboy::bus::bus::BusMember;
-use crate::tickable::{Tickable, ONE_MCYCLE};
+use crate::tickable::{Tickable, Ticks, ONE_MCYCLE};
 
 use anyhow::Result;
 use num_derive::FromPrimitive;
@@ -166,8 +166,9 @@ impl BusMember for Timer {
 }
 
 impl Tickable for Timer {
-    fn tick(&mut self, ticks: usize) -> Result<usize> {
-        for _ in 0..ticks {
+    fn tick(&mut self, ticks: Ticks) -> Result<()> {
+        // Timer can run on double speed
+        for _ in 0..ticks.get_t_ds() {
             if self.cycles % ONE_MCYCLE == 0 {
                 // Timer reload quirk - actual reload happens
                 // one M-cycle after overflow.
@@ -184,7 +185,7 @@ impl Tickable for Timer {
             self.update_cycles(self.cycles.wrapping_add(1));
         }
 
-        Ok(ticks)
+        Ok(())
     }
 }
 
@@ -196,11 +197,11 @@ mod tests {
     fn div() {
         let mut t = Timer::new();
         assert_eq!(t.read(0xFF04), 0);
-        t.tick(256).unwrap();
+        t.tick(Ticks::from_t(256)).unwrap();
         assert_eq!(t.read(0xFF04), 1);
-        t.tick(256 * 254).unwrap();
+        t.tick(Ticks::from_t(256 * 254)).unwrap();
         assert_eq!(t.read(0xFF04), 255);
-        t.tick(256).unwrap();
+        t.tick(Ticks::from_t(256)).unwrap();
         assert_eq!(t.read(0xFF04), 0);
     }
 
@@ -208,7 +209,7 @@ mod tests {
     fn div_reset() {
         let mut t = Timer::new();
         assert_eq!(t.read(0xFF04), 0);
-        t.tick(256).unwrap();
+        t.tick(Ticks::from_t(256)).unwrap();
         assert_eq!(t.read(0xFF04), 1);
         t.write(0xFF04, 123);
         assert_eq!(t.read(0xFF04), 0);
@@ -219,10 +220,10 @@ mod tests {
         let mut t = Timer::new();
         t.write(0xFF07, 0x07);
         assert!(!t.get_clr_intreq());
-        t.tick(256 * 256).unwrap();
+        t.tick(Ticks::from_t(256 * 256)).unwrap();
         assert!(!t.get_clr_intreq());
         // Extra tick for timer reload quirk
-        t.tick(ONE_MCYCLE).unwrap();
+        t.tick(Ticks::from_t(ONE_MCYCLE)).unwrap();
         assert!(t.get_clr_intreq());
         assert!(!t.get_clr_intreq());
     }
@@ -232,7 +233,7 @@ mod tests {
         let mut t = Timer::new();
         t.write(0xFF07, 0x07);
         assert_eq!(t.read(0xFF05), 0);
-        t.tick(256).unwrap();
+        t.tick(Ticks::from_t(256)).unwrap();
         assert_eq!(t.read(0xFF05), 1);
     }
 
@@ -242,10 +243,10 @@ mod tests {
         t.write(0xFF07, 0x07);
         t.write(0xFF06, 0xAA);
         assert_eq!(t.read(0xFF05), 0);
-        t.tick(256 * 256).unwrap();
+        t.tick(Ticks::from_t(256 * 256)).unwrap();
         assert_eq!(t.read(0xFF05), 0);
         // Extra tick for timer reload quirk
-        t.tick(ONE_MCYCLE).unwrap();
+        t.tick(Ticks::from_t(ONE_MCYCLE)).unwrap();
         assert_eq!(t.read(0xFF05), 0xAA);
     }
 }

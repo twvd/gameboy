@@ -12,7 +12,6 @@ use crate::gameboy::lcd::{LCDController, LCD_H, LCD_W};
 use crate::gameboy::serial::Serial;
 use crate::input::input::NullInput;
 use crate::misc::WritableSender;
-use crate::tickable::Tickable;
 
 use itertools::Itertools;
 
@@ -43,7 +42,7 @@ fn test_serial(rom: &[u8], pass_text: &[u8], fail_text: &[u8], time_limit: u128)
         if start.elapsed().as_millis() > time_limit {
             panic!("Timeout");
         }
-        cpu.tick(1).unwrap();
+        cpu.step().unwrap();
 
         if let Ok(c) = rx.try_recv() {
             output.push(c);
@@ -72,7 +71,7 @@ fn test_display(rom: &[u8], pass_hash: &[u8], time_limit: u128, cgb: bool) {
             dbg!(dispstatus.get());
             panic!("Timeout");
         }
-        cpu.tick(1).unwrap();
+        cpu.step().unwrap();
 
         let newstatus = dispstatus.get();
         if newstatus.stable_frames >= 100 {
