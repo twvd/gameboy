@@ -60,6 +60,11 @@ impl Ticks {
     pub fn get_m_no_ds(&self) -> usize {
         self.get_t_no_ds() / ONE_MCYCLE
     }
+
+    /// Test if this is in double speed mode
+    pub fn is_double_speed(&self) -> bool {
+        matches!(self, Self::DoubleSpeed(_))
+    }
 }
 
 pub trait Tickable {

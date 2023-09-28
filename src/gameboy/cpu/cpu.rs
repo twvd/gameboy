@@ -686,9 +686,6 @@ impl CPU {
 
             // The 'no branch' cycle cost is used for speed switch,
             // which takes 2050 cycles.
-            //
-            // TODO To be entirely accurate, the timer/DIV should be
-            // frozen during this period.
             Ok(OpOk::no_branch(self, instr))
         } else {
             // Normal STOP
@@ -1448,15 +1445,17 @@ impl CPU {
         );
     }
 
+    fn is_double_speed(&self) -> bool {
+        self.cgb && self.key1 & KEY1_DOUBLE_SPEED != 0
+    }
+
     /// Tick peripherals
     fn tick_bus(&mut self, cycles: usize) -> Result<()> {
         if cycles == 0 {
             return Ok(());
         }
 
-        let bus_ticks = Ticks::from_t_xs(cycles, self.cgb && self.key1 & KEY1_DOUBLE_SPEED != 0);
-        // TODO DIV should reset to 0 after speed switch
-
+        let bus_ticks = Ticks::from_t_xs(cycles, self.is_double_speed());
         self.bus.tick(bus_ticks)
     }
 

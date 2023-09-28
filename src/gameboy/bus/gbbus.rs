@@ -77,6 +77,9 @@ pub struct Gameboybus {
 
     /// Serial port controller
     serial: Serial,
+
+    /// Double speed mode
+    double_speed: bool,
 }
 
 impl Gameboybus {
@@ -127,6 +130,7 @@ impl Gameboybus {
             oamdma_start: 0,
             oamdma_ticks: 0,
             oamdma_addr: 0,
+            double_speed: false,
         };
 
         if let Some(br) = bootrom {
@@ -486,7 +490,13 @@ impl Tickable for Gameboybus {
 
         // Tick sub-peripherals
         self.lcd.tick(ticks)?;
-        self.timer.tick(ticks)?;
+        if ticks.is_double_speed() != self.double_speed {
+            // Speed switch occured, do not tick timer
+            // (timer is frozen during STOP)
+            self.double_speed = ticks.is_double_speed();
+        } else {
+            self.timer.tick(ticks)?;
+        }
         self.serial.tick(ticks)?;
 
         self.update_intflags();
