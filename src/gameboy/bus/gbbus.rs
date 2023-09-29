@@ -156,7 +156,7 @@ impl Gameboybus {
         }
     }
 
-    fn do_vramdma(&mut self, written_len: Option<u8>) {
+    fn do_vramdma(&mut self, written_len: Option<u8>) -> Result<()> {
         if let Some(start_len) = written_len {
             self.vramdma_src = self.vramdma_src & !0x000F;
             self.vramdma_dest = (self.vramdma_dest & 0x9FF0) | 0x8000;
@@ -165,7 +165,7 @@ impl Gameboybus {
                 if len & !VRAMDMA_HBLANK_MODE == start_len {
                     // Pause transaction
                     self.vramdma_len = Some(start_len);
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -174,13 +174,13 @@ impl Gameboybus {
 
             if start_len & VRAMDMA_HBLANK_MODE == VRAMDMA_HBLANK_MODE {
                 // Do the first transaction once HBlank status is observed.
-                return;
+                return Ok(());
             }
         }
 
         let Some(len) = self.vramdma_len else {
             // Nothing to do..
-            return;
+            return Ok(());
         };
         let transfer_len;
 
@@ -199,11 +199,21 @@ impl Gameboybus {
             }
         } else {
             // Paused
-            return;
+            return Ok(());
         }
 
         for _ in 0..transfer_len {
             self.write(self.vramdma_dest, self.read(self.vramdma_src));
+
+            // 4 M-cycles for every block
+            // (unaffected by double speed, so double cycles there)
+            if transfer_len % 0x10 == 0 {
+                self.tick(if self.double_speed {
+                    Ticks::from_m(8)
+                } else {
+                    Ticks::from_m_ds(4)
+                })?;
+            }
 
             if self.vramdma_dest >= 0x9FFF {
                 // Destination overflow means completion
@@ -214,6 +224,8 @@ impl Gameboybus {
             self.vramdma_src = self.vramdma_src.wrapping_add(1);
             self.vramdma_dest = self.vramdma_dest.wrapping_add(1);
         }
+
+        Ok(())
     }
 
     fn oamdma_tick(&mut self, ticks: Ticks) {
@@ -465,7 +477,7 @@ impl BusMember for Gameboybus {
             0xFF54 if self.cgb => self.vramdma_dest = self.vramdma_dest & 0xFF00 | val as u16,
 
             // CGB - HDMA5 - VRAM DMA length/mode/start
-            0xFF55 if self.cgb => self.do_vramdma(Some(val)),
+            0xFF55 if self.cgb => self.do_vramdma(Some(val)).unwrap(),
 
             // CGB - SVBK / WRAM bank select
             0xFF70 if self.cgb => self.wram_banksel = cmp::max(1, val) & 0x07,
@@ -506,7 +518,7 @@ impl Tickable for Gameboybus {
         if statmode == LCDStatMode::HBlank && !self.vramdma_hb_seen {
             self.vramdma_hb_seen = true;
 
-            self.do_vramdma(None);
+            self.do_vramdma(None)?;
         } else if statmode != LCDStatMode::HBlank {
             self.vramdma_hb_seen = false;
         }

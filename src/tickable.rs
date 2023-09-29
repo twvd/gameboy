@@ -31,6 +31,16 @@ impl Ticks {
         }
     }
 
+    /// Create new (from M-cycles), normal speed
+    pub fn from_m(t: usize) -> Self {
+        Self::from_m_xs(t, false)
+    }
+
+    /// Create new (from M-cycles), double speed
+    pub fn from_m_ds(t: usize) -> Self {
+        Self::from_m_xs(t, true)
+    }
+
     /// Create new (from M-cycles)
     pub fn from_m_xs(m: usize, ds: bool) -> Self {
         Self::from_t_xs(m * ONE_MCYCLE, ds)
