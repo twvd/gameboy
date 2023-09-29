@@ -154,11 +154,12 @@ fn main() -> Result<()> {
         serial = Serial::new(Box::new(stream.try_clone()?), Box::new(stream));
     }
 
-    let terminal = stdout();
-    terminal.act(Action::EnableRawMode).unwrap();
     let (key_tx, key_rx) = mpsc::channel();
+    let terminal = stdout();
 
     if !args.no_display {
+        terminal.act(Action::EnableRawMode).unwrap();
+
         #[cfg(not(feature = "sixel"))]
         {
             let cdisplay = Box::new(TerminalDisplay::new(DISPLAY_W, DISPLAY_H, args.fps));
