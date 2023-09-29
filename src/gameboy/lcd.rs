@@ -250,6 +250,9 @@ pub struct LCDController {
 
     /// Object priority mode
     objpri: ObjPriMode,
+
+    /// Skip drawing X frames
+    skip_frames: usize,
 }
 
 impl LCDController {
@@ -278,7 +281,7 @@ impl LCDController {
             ObjPriMode::Coordinate
         };
 
-        Self {
+        let mut r = Self {
             output: display,
             cgb,
             oam: OAMTable::new(),
@@ -310,7 +313,11 @@ impl LCDController {
             stat_int_line: false,
 
             objpri,
-        }
+            skip_frames: 1,
+        };
+        r.reset();
+
+        r
     }
 
     /// Gets current stat mode based on the dot clock
@@ -702,6 +709,16 @@ impl LCDController {
         self.stat_int_line = new_line;
         return false;
     }
+
+    /// Re-initializes the PPU (e.g. after being disabled).
+    fn reset(&mut self) {
+        self.dots = Self::DOTS_INIT;
+        self.ly = 0;
+        self.lcds = self.lcds & !LCDS_STATMODE_MASK;
+
+        // After the PPU is re-enabled, the first frame is discarded.
+        self.skip_frames = 1;
+    }
 }
 
 impl Tickable for LCDController {
@@ -711,9 +728,7 @@ impl Tickable for LCDController {
 
         if self.lcdc & LCDC_ENABLE == 0 {
             // PPU disabled, restart frame
-            self.dots = Self::DOTS_INIT;
-            self.ly = 0;
-            self.lcds = self.lcds & !LCDS_STATMODE_MASK;
+            self.reset();
             return Ok(());
         }
 
@@ -770,7 +785,11 @@ impl Tickable for LCDController {
         if self.in_vblank() {
             if self.redraw_pending {
                 self.redraw_pending = false;
-                self.output.render();
+                if self.skip_frames == 0 {
+                    self.output.render();
+                } else {
+                    self.skip_frames -= 1;
+                }
             }
         } else {
             self.redraw_pending = true;
