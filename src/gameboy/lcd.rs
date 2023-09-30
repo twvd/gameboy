@@ -6,6 +6,8 @@ use crate::tickable::{Tickable, Ticks};
 use anyhow::Result;
 use num_derive::ToPrimitive;
 use num_traits::ToPrimitive;
+use strum::EnumCount;
+use strum_macros::EnumCount as EnumCountMacro;
 
 pub const LCD_W: usize = 160;
 pub const LCD_H: usize = 144;
@@ -167,6 +169,11 @@ pub enum LCDStatMode {
     VBlank = 1,
 }
 
+#[derive(Debug, EnumCountMacro, ToPrimitive)]
+enum RegHist {
+    BGP,
+}
+
 /// LCD controller state
 pub struct LCDController {
     /// Display output
@@ -253,6 +260,9 @@ pub struct LCDController {
 
     /// Skip drawing X frames
     skip_frames: usize,
+
+    /// Register change history during mode 3
+    reg_history: [[u8; Self::TRANSFER_PERIOD as usize]; RegHist::COUNT],
 }
 
 impl LCDController {
@@ -314,6 +324,8 @@ impl LCDController {
 
             objpri,
             skip_frames: 1,
+
+            reg_history: [[0; Self::TRANSFER_PERIOD as usize]; RegHist::COUNT],
         };
         r.reset();
 
@@ -338,6 +350,27 @@ impl LCDController {
                 LCDStatMode::HBlank
             }
         }
+    }
+
+    /// Record a register change for something tracked during mode 3
+    fn record_reg(&mut self, reg: RegHist, val: u8) {
+        if self.get_stat_mode() == LCDStatMode::Transfer {
+            let transfer_cycle = ((self.dots % Self::DOTS_PER_LINE) - Self::SEARCH_PERIOD) as usize;
+
+            // Fill from this cycle onwards
+            self.reg_history[reg.to_usize().unwrap()][transfer_cycle..].fill(val);
+        } else {
+            // Fill for the entire line
+            self.reg_history[reg.to_usize().unwrap()].fill(val);
+        }
+    }
+
+    /// Fetch a register for something tracked during mode 3
+    fn fetch_reg(&self, reg: RegHist, x: usize) -> u8 {
+        assert_eq!(self.get_stat_mode(), LCDStatMode::Transfer);
+        let transfer_cycle =
+            ((self.dots % Self::DOTS_PER_LINE) - Self::SEARCH_PERIOD) as usize + 12 + x;
+        self.reg_history[reg.to_usize().unwrap()][transfer_cycle]
     }
 
     /// Calculate LY based on current timed LCD scan
@@ -485,10 +518,10 @@ impl LCDController {
         // Auto-increment has no effect on reads
     }
 
-    fn get_tile_palette(&self, tile: &Tile) -> Palette {
+    fn get_tile_palette(&self, tile: &Tile, x: usize) -> Palette {
         if !self.cgb {
             let palette_val = match tile.ttype {
-                TileType::Background | TileType::Window => self.bgp,
+                TileType::Background | TileType::Window => self.fetch_reg(RegHist::BGP, x),
                 TileType::Object => {
                     self.obp[((tile.attr & TILEATTR_PALETTE_DMG_MASK) >> TILEATTR_PALETTE_DMG_SHIFT)
                         as usize]
@@ -520,8 +553,6 @@ impl LCDController {
         y: isize,
         scanline: isize,
     ) {
-        let palette = self.get_tile_palette(&tile);
-
         for ty in 0..TILE_H {
             // Y-axis wrap around (scrolling)
             let disp_y = if tile.is_bg() {
@@ -546,6 +577,7 @@ impl LCDController {
                     continue;
                 }
 
+                let palette = self.get_tile_palette(&tile, disp_x as usize);
                 let color_idx = Self::tile_decode(
                     &tile.data,
                     if (self.cgb || tile.is_object()) && tile.flip_x() {
@@ -676,6 +708,9 @@ impl LCDController {
         for (x, c) in line.into_iter().enumerate() {
             self.output.set_pixel(x, scanline as usize, c.color.into());
         }
+
+        // Reset current state of tracked registers for next scanline
+        self.reg_history[RegHist::BGP.to_usize().unwrap()].fill(self.bgp);
     }
 
     pub fn get_clr_intreq_stat(&mut self) -> bool {
@@ -903,7 +938,10 @@ impl BusMember for LCDController {
             0xFF45 => self.lyc = val,
 
             // BGP - Background and window palette
-            0xFF47 => self.bgp = val,
+            0xFF47 => {
+                self.record_reg(RegHist::BGP, val);
+                self.bgp = val;
+            }
 
             // OBPx - Object Palette
             0xFF48 => self.obp[0] = val,
