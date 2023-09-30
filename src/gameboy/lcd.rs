@@ -749,7 +749,7 @@ impl LCDController {
     fn reset(&mut self) {
         self.dots = Self::DOTS_INIT;
         self.ly = 0;
-        self.lcds = self.lcds & !LCDS_STATMODE_MASK;
+        self.lcds = self.lcds & !LCDS_STATMODE_MASK | LCDStatMode::Search.to_u8().unwrap();
 
         // After the PPU is re-enabled, the first frame is discarded.
         self.skip_frames = 1;
@@ -762,8 +762,7 @@ impl Tickable for LCDController {
         let ticks = ticks.get_t_no_ds();
 
         if self.lcdc & LCDC_ENABLE == 0 {
-            // PPU disabled, restart frame
-            self.reset();
+            // PPU disabled
             return Ok(());
         }
 
@@ -847,7 +846,13 @@ impl BusMember for LCDController {
             0xFF40 => self.lcdc,
 
             // LCDS - LCD status register
-            0xFF41 => self.lcds,
+            0xFF41 => {
+                if self.lcdc & LCDC_ENABLE == 0 {
+                    self.lcds & !LCDS_STATMODE_MASK
+                } else {
+                    self.lcds
+                }
+            }
 
             // SCY - Background scrolling viewport Y
             0xFF42 => self.scy,
@@ -912,7 +917,13 @@ impl BusMember for LCDController {
             0xFE00..=0xFE9F => self.oam.write(addr - 0xFE00, val),
 
             // LCDC - LCD control register
-            0xFF40 => self.lcdc = val,
+            0xFF40 => {
+                if self.lcdc & LCDC_ENABLE == 0 && val & LCDC_ENABLE != 0 {
+                    // PPU re-enabled
+                    self.reset();
+                }
+                self.lcdc = val;
+            }
 
             // LCDS - LCD status register
             0xFF41 => {
