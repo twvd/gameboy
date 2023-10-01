@@ -142,6 +142,7 @@ pub fn load_with_save(rom: &[u8], save: &[u8]) -> Rc<RefCell<dyn Cartridge>> {
         Some(CartridgeType::Mbc5) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
         Some(CartridgeType::Mbc5Ram) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
         Some(CartridgeType::Mbc5RamBat) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
+        Some(CartridgeType::Mbc5RumbleRamBat) => Rc::new(RefCell::new(Mbc5::new(rom, save))),
         Some(unknown) => panic!("Unknown cartridge type {:?}", unknown),
         _ => panic!("Unknown cartridge type {:02X}", rom[CARTTYPE_OFFSET]),
     }
