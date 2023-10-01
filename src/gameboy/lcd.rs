@@ -861,7 +861,13 @@ impl BusMember for LCDController {
             0xFF43 => self.scx,
 
             // LY - LCD update Y position
-            0xFF44 => self.ly,
+            0xFF44 => {
+                if self.lcdc & LCDC_ENABLE == 0 {
+                    0
+                } else {
+                    self.ly
+                }
+            }
 
             // LYC - LY compare
             0xFF45 => self.lyc,
