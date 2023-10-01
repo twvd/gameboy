@@ -102,7 +102,7 @@ struct Args {
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     let savefn = args.save_filename.unwrap_or_else(|| {
         let mut p = PathBuf::from(&args.filename);
@@ -224,10 +224,17 @@ fn main() -> Result<()> {
                     terminal.act(Action::DisableRawMode).unwrap();
                     terminal.act(Action::ShowCursor).unwrap();
                     terminal.act(Action::ResetColor).unwrap();
-                    terminal.act(Action::MoveCursorTo(0, 0)).unwrap();
-                    terminal.act(Action::ClearTerminal(Clear::All)).unwrap();
+                    if !args.verbose {
+                        terminal.act(Action::MoveCursorTo(0, 0)).unwrap();
+                        terminal.act(Action::ClearTerminal(Clear::All)).unwrap();
+                    }
 
                     break 'mainloop;
+                }
+                KeyCode::Char('d') => {
+                    terminal.act(Action::DisableRawMode).unwrap();
+                    args.verbose = true;
+                    args.pause = true;
                 }
                 _ => key_tx.send(keyevent)?,
             }
