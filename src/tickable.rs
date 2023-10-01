@@ -40,7 +40,7 @@ impl Ticks {
     pub fn get_t_ds(&self) -> usize {
         match self {
             Self::NormalSpeed(t) => *t,
-            Self::DoubleSpeed(t) => *t * 2,
+            Self::DoubleSpeed(t) => *t,
         }
     }
 
@@ -52,7 +52,8 @@ impl Ticks {
     /// Gets the amount of T-cycles, NOT supporting double speed.
     pub fn get_t_no_ds(&self) -> usize {
         match self {
-            Self::NormalSpeed(t) | Self::DoubleSpeed(t) => *t,
+            Self::NormalSpeed(t) => *t,
+            Self::DoubleSpeed(t) => *t / 2,
         }
     }
 
